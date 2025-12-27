@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { clsx } from 'clsx';
-import { HUE_SEGMENTS, SATURATION_RINGS, Guess, PLAYER_COLORS } from '@/lib/types';
+import { HUE_SEGMENTS, CHROMA_LEVELS, Guess, PLAYER_COLORS } from '@/lib/types';
 import { hslToColor } from '@/lib/colors';
 
 interface ColorWheelProps {
@@ -38,7 +38,7 @@ export default function ColorWheel({
   const centerY = size / 2;
   const innerRadius = size * 0.08; // Empty center
   const outerRadius = size * 0.48;
-  const ringWidth = (outerRadius - innerRadius) / SATURATION_RINGS;
+  const ringWidth = (outerRadius - innerRadius) / CHROMA_LEVELS;
 
   // Generate cell paths
   const cells = useMemo(() => {
@@ -50,7 +50,7 @@ export default function ColorWheel({
     }[] = [];
 
     for (let h = 0; h < HUE_SEGMENTS; h++) {
-      for (let s = 0; s < SATURATION_RINGS; s++) {
+      for (let s = 0; s < CHROMA_LEVELS; s++) {
         const startAngle = (h / HUE_SEGMENTS) * 360 - 90; // Start at top
         const endAngle = ((h + 1) / HUE_SEGMENTS) * 360 - 90;
         const innerR = innerRadius + s * ringWidth;

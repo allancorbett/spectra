@@ -12,8 +12,8 @@ export interface Guess {
   playerId: string;
   roundNumber: number;
   guessNumber: 1 | 2;
-  hue: number; // 0-35
-  saturation: number; // 0-7
+  hue: number; // 0-29 (HUE_SEGMENTS - 1)
+  saturation: number; // 0-11 (CHROMA_LEVELS - 1) - actually chroma in OKLCH
   lockedIn: boolean;
   distance?: number; // Calculated at reveal
 }
@@ -35,8 +35,8 @@ export interface Game {
   hostId: string;
   clueGiverId: string | null;
   roundNumber: number;
-  targetHue: number | null; // 0-35
-  targetSaturation: number | null; // 0-7
+  targetHue: number | null; // 0-29 (HUE_SEGMENTS - 1)
+  targetSaturation: number | null; // 0-11 (CHROMA_LEVELS - 1)
   createdAt: number;
   lockedAt: number | null;
   phaseEndTime: number | null; // Timestamp when current phase ends
@@ -69,9 +69,9 @@ export const PLAYER_COLORS = [
   '#58D68D', // Green
 ];
 
-// Constants
-export const HUE_SEGMENTS = 36;
-export const SATURATION_RINGS = 8;
+// Constants - 30x12 = 360 colors for good variety while remaining playable
+export const HUE_SEGMENTS = 30;
+export const CHROMA_LEVELS = 12;
 export const PHASE_DURATION = 30000; // 30 seconds in ms
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 24;

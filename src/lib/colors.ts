@@ -1,20 +1,24 @@
-import { HUE_SEGMENTS, SATURATION_RINGS } from './types';
+import { HUE_SEGMENTS, CHROMA_LEVELS } from './types';
 
 /**
- * Convert HSL to CSS color string
- * Hue: 0-35 (mapped to 0-360)
- * Saturation: 0-7 (mapped to ~20-100%)
- * Lightness: Fixed at 50%
+ * Convert grid indices to OKLCH CSS color string
+ * Uses OKLCH for perceptually uniform brightness
+ *
+ * Hue: 0 to HUE_SEGMENTS-1 (mapped to 0-360 degrees)
+ * Chroma: 0 to CHROMA_LEVELS-1 (mapped to 0.05-0.25 for vivid but displayable colors)
+ * Lightness: Fixed at 0.65 for uniform perceived brightness
  */
-export function hslToColor(hueIndex: number, saturationIndex: number): string {
+export function hslToColor(hueIndex: number, chromaIndex: number): string {
   const hue = (hueIndex / HUE_SEGMENTS) * 360;
-  // Saturation ranges from 20% (center) to 100% (edge)
-  const saturation = 20 + (saturationIndex / (SATURATION_RINGS - 1)) * 80;
-  return `hsl(${hue}, ${saturation}%, 50%)`;
+  // Chroma ranges from 0.05 (grayish) to 0.25 (vivid)
+  // Higher values may be out of gamut on some displays
+  const chroma = 0.05 + (chromaIndex / (CHROMA_LEVELS - 1)) * 0.20;
+  const lightness = 0.65;
+  return `oklch(${lightness} ${chroma} ${hue})`;
 }
 
 /**
- * Calculate Euclidean distance between two cells on the color wheel
+ * Calculate Euclidean distance between two cells on the color grid
  * Returns a score from 0-100 (lower is better)
  */
 export function calculateDistance(
@@ -23,17 +27,17 @@ export function calculateDistance(
   guessHue: number,
   guessSat: number
 ): number {
-  // Calculate hue distance (shortest arc, wrapping at 36)
+  // Calculate hue distance (shortest arc, wrapping at HUE_SEGMENTS)
   let hueDiff = Math.abs(targetHue - guessHue);
   if (hueDiff > HUE_SEGMENTS / 2) {
     hueDiff = HUE_SEGMENTS - hueDiff;
   }
-  // Normalize hue distance to 0-1 scale (max distance is 18 segments)
+  // Normalize hue distance to 0-1 scale (max distance is half the segments)
   const normalizedHueDist = hueDiff / (HUE_SEGMENTS / 2);
 
-  // Calculate saturation distance (0-7, so max diff is 7)
+  // Calculate chroma distance
   const satDiff = Math.abs(targetSat - guessSat);
-  const normalizedSatDist = satDiff / (SATURATION_RINGS - 1);
+  const normalizedSatDist = satDiff / (CHROMA_LEVELS - 1);
 
   // Euclidean distance in normalized space
   const euclidean = Math.sqrt(
@@ -53,7 +57,7 @@ export function calculateDistance(
 export function getRandomTarget(): { hue: number; saturation: number } {
   return {
     hue: Math.floor(Math.random() * HUE_SEGMENTS),
-    saturation: Math.floor(Math.random() * SATURATION_RINGS),
+    saturation: Math.floor(Math.random() * CHROMA_LEVELS),
   };
 }
 
