@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   Game,
   GameState,
+  GameSettings,
   Player,
   RoundScore,
   PLAYER_COLORS,
@@ -10,8 +11,8 @@ import {
   MIN_PLAYERS,
   MAX_PLAYERS,
   MAX_NAME_LENGTH,
-  HUE_SEGMENTS,
-  CHROMA_LEVELS,
+  DEFAULT_SETTINGS,
+  getGridDimensions,
 } from './types';
 import { calculateDistance, generateGameCode, getRandomTarget } from './colors';
 
@@ -147,6 +148,8 @@ export async function createGame(hostPlayerId: string): Promise<Game> {
     players: [],
     guesses: [],
     roundScores: [],
+    settings: { ...DEFAULT_SETTINGS },
+    currentClue: null,
   };
 
   await setGameInStore(game);
@@ -288,12 +291,13 @@ export async function startGame(gameId: string, playerId: string): Promise<{ suc
 
 function startNewRound(game: Game) {
   game.roundNumber++;
-  const target = getRandomTarget();
+  const target = getRandomTarget(game.settings.complexity);
   game.targetHue = target.hue;
   game.targetSaturation = target.saturation;
   game.state = 'clue-1';
-  game.phaseEndTime = Date.now() + PHASE_DURATION;
+  game.phaseEndTime = game.settings.timerEnabled ? Date.now() + PHASE_DURATION : null;
   game.roundScores = [];
+  game.currentClue = null;
   // Clear guesses for this round (keep previous rounds for history if needed)
   game.guesses = game.guesses.filter((g) => g.roundNumber !== game.roundNumber);
 }
@@ -345,7 +349,11 @@ export async function advancePhase(
   }
 
   game.state = nextState;
-  game.phaseEndTime = ['guess-1', 'guess-2', 'clue-1', 'clue-2'].includes(nextState)
+  // Clear clue when advancing from clue-1 to guess-1 (clue-2 starts fresh)
+  if (game.state === 'guess-1') {
+    game.currentClue = null;
+  }
+  game.phaseEndTime = game.settings.timerEnabled && ['guess-1', 'guess-2', 'clue-1', 'clue-2'].includes(nextState)
     ? Date.now() + PHASE_DURATION
     : null;
 
@@ -379,14 +387,15 @@ export async function submitGuess(
     return { success: false, error: 'Not in a guess phase' };
   }
 
-  // Validate hue and saturation are within bounds
+  // Validate hue and saturation are within bounds for current complexity
+  const dims = getGridDimensions(game.settings.complexity);
   if (
     typeof hue !== 'number' ||
     typeof saturation !== 'number' ||
     hue < 0 ||
-    hue >= HUE_SEGMENTS ||
+    hue >= dims.hue ||
     saturation < 0 ||
-    saturation >= CHROMA_LEVELS ||
+    saturation >= dims.chroma ||
     !Number.isInteger(hue) ||
     !Number.isInteger(saturation)
   ) {
@@ -437,7 +446,8 @@ export async function submitGuess(
         game.clueGiverId = getNextClueGiver(game);
       }
       game.state = nextState as GameState;
-      game.phaseEndTime = nextState === 'clue-2' ? Date.now() + PHASE_DURATION : null;
+      game.currentClue = null; // Clear clue when advancing
+      game.phaseEndTime = nextState === 'clue-2' && game.settings.timerEnabled ? Date.now() + PHASE_DURATION : null;
     }
   }
 
@@ -451,6 +461,7 @@ function calculateRoundScores(game: Game) {
   const scores: RoundScore[] = [];
   const guessers = game.players.filter((p) => p.id !== game.clueGiverId);
   const clueGiver = game.players.find((p) => p.id === game.clueGiverId);
+  const dims = getGridDimensions(game.settings.complexity);
 
   for (const player of guessers) {
     const playerGuesses = game.guesses.filter(
@@ -464,14 +475,16 @@ function calculateRoundScores(game: Game) {
       continue;
     }
 
-    // Calculate distance for each guess
+    // Calculate distance for each guess using complexity-based dimensions
     let bestDistance = 100;
     for (const guess of playerGuesses) {
       const distance = calculateDistance(
         game.targetHue,
         game.targetSaturation,
         guess.hue,
-        guess.saturation
+        guess.saturation,
+        dims.hue,
+        dims.chroma
       );
       guess.distance = distance;
       if (distance < bestDistance) {
@@ -557,18 +570,84 @@ export async function playAgain(gameId: string, playerId: string): Promise<{ suc
   return { success: true, game };
 }
 
+export async function updateSettings(
+  gameId: string,
+  playerId: string,
+  settings: Partial<GameSettings>
+): Promise<{ success: boolean; error?: string; game?: Game }> {
+  const game = await getGame(gameId);
+  if (!game) {
+    return { success: false, error: 'Game not found' };
+  }
+
+  if (game.hostId !== playerId) {
+    return { success: false, error: 'Only the host can change settings' };
+  }
+
+  if (game.state !== 'lobby') {
+    return { success: false, error: 'Cannot change settings after game has started' };
+  }
+
+  // Merge new settings with existing
+  game.settings = { ...game.settings, ...settings };
+
+  await setGameInStore(game);
+  return { success: true, game };
+}
+
+export async function submitClue(
+  gameId: string,
+  playerId: string,
+  clue: string
+): Promise<{ success: boolean; error?: string; game?: Game }> {
+  const game = await getGame(gameId);
+  if (!game) {
+    return { success: false, error: 'Game not found' };
+  }
+
+  if (game.clueGiverId !== playerId) {
+    return { success: false, error: 'Only the clue-giver can submit a clue' };
+  }
+
+  if (game.settings.mode !== 'remote') {
+    return { success: false, error: 'Clue submission only available in remote mode' };
+  }
+
+  if (game.state !== 'clue-1' && game.state !== 'clue-2') {
+    return { success: false, error: 'Not in a clue phase' };
+  }
+
+  // Validate word count
+  const trimmedClue = clue.trim();
+  const words = trimmedClue.split(/\s+/).filter(w => w.length > 0);
+  const expectedWords = game.state === 'clue-1' ? 1 : 2;
+
+  if (words.length !== expectedWords) {
+    return {
+      success: false,
+      error: `Clue must be exactly ${expectedWords} word${expectedWords > 1 ? 's' : ''}`
+    };
+  }
+
+  game.currentClue = trimmedClue;
+
+  await setGameInStore(game);
+  return { success: true, game };
+}
+
 export async function checkAndAdvancePhase(gameId: string): Promise<Game | null> {
   const game = await getGame(gameId);
   if (!game) return null;
 
   let updated = false;
 
-  // Auto-advance if phase timer expired
-  if (game.phaseEndTime && Date.now() >= game.phaseEndTime) {
+  // Auto-advance if phase timer expired (only when timer is enabled)
+  if (game.settings.timerEnabled && game.phaseEndTime && Date.now() >= game.phaseEndTime) {
     if (game.state === 'guess-1') {
       // Lock in any placed guesses
       lockUnlockedGuesses(game, 1);
       game.state = 'clue-2';
+      game.currentClue = null;
       game.phaseEndTime = Date.now() + PHASE_DURATION;
       updated = true;
     } else if (game.state === 'guess-2') {
@@ -578,6 +657,7 @@ export async function checkAndAdvancePhase(gameId: string): Promise<Game | null>
       // Rotate to next clue-giver in join order
       game.clueGiverId = getNextClueGiver(game);
       game.state = 'reveal';
+      game.currentClue = null;
       game.phaseEndTime = null;
       updated = true;
     } else if (game.state === 'clue-1' || game.state === 'clue-2') {

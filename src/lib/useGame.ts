@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Game } from './types';
+import { Game, GameSettings } from './types';
 
 const POLL_INTERVAL = 1000; // Poll every second
 const PLAYER_ID_KEY = 'spectra_player_id';
@@ -30,6 +30,8 @@ interface UseGameResult {
   startGame: () => Promise<{ success: boolean; error?: string }>;
   advancePhase: () => Promise<{ success: boolean; error?: string }>;
   submitGuess: (hue: number, saturation: number, lockIn: boolean) => Promise<{ success: boolean; error?: string }>;
+  submitClue: (clue: string) => Promise<{ success: boolean; error?: string }>;
+  updateSettings: (settings: Partial<GameSettings>) => Promise<{ success: boolean; error?: string }>;
   endGame: () => Promise<{ success: boolean; error?: string }>;
   playAgain: () => Promise<{ success: boolean; error?: string }>;
   loadGame: (gameId: string) => Promise<void>;
@@ -217,6 +219,20 @@ export function useGame(initialGameId?: string): UseGameResult {
     [apiCall]
   );
 
+  const submitClueFn = useCallback(
+    async (clue: string) => {
+      return apiCall('submitClue', { clue });
+    },
+    [apiCall]
+  );
+
+  const updateSettingsFn = useCallback(
+    async (settings: Partial<GameSettings>) => {
+      return apiCall('updateSettings', { settings });
+    },
+    [apiCall]
+  );
+
   const endGameFn = useCallback(async () => {
     return apiCall('end');
   }, [apiCall]);
@@ -244,6 +260,8 @@ export function useGame(initialGameId?: string): UseGameResult {
     startGame: startGameFn,
     advancePhase: advancePhaseFn,
     submitGuess: submitGuessFn,
+    submitClue: submitClueFn,
+    updateSettings: updateSettingsFn,
     endGame: endGameFn,
     playAgain: playAgainFn,
     loadGame,

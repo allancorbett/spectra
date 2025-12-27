@@ -7,6 +7,8 @@ import {
   startGame,
   advancePhase,
   submitGuess,
+  submitClue,
+  updateSettings,
   endGame,
   playAgain,
   leaveGame,
@@ -22,6 +24,8 @@ const VALID_ACTIONS: GameActionType[] = [
   'start',
   'advance',
   'guess',
+  'submitClue',
+  'updateSettings',
   'end',
   'playAgain',
   'poll',
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Actions that require gameId
-    const requiresGameId: GameActionType[] = ['join', 'leave', 'start', 'advance', 'guess', 'end', 'playAgain', 'poll'];
+    const requiresGameId: GameActionType[] = ['join', 'leave', 'start', 'advance', 'guess', 'submitClue', 'updateSettings', 'end', 'playAgain', 'poll'];
     if (requiresGameId.includes(action) && !isValidGameId(gameId)) {
       return NextResponse.json(
         { success: false, error: 'Valid game ID required' },
@@ -62,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Actions that require playerId
-    const requiresPlayerId: GameActionType[] = ['join', 'leave', 'start', 'advance', 'guess', 'end', 'playAgain'];
+    const requiresPlayerId: GameActionType[] = ['join', 'leave', 'start', 'advance', 'guess', 'submitClue', 'updateSettings', 'end', 'playAgain'];
     if (requiresPlayerId.includes(action) && !isValidPlayerId(playerId)) {
       return NextResponse.json(
         { success: false, error: 'Valid player ID required' },
@@ -113,6 +117,30 @@ export async function POST(request: NextRequest) {
           );
         }
         const result = await submitGuess(gameId, playerId, hue, saturation, Boolean(lockIn));
+        return NextResponse.json(result);
+      }
+
+      case 'submitClue': {
+        const { clue } = payload;
+        if (typeof clue !== 'string') {
+          return NextResponse.json(
+            { success: false, error: 'Clue is required' },
+            { status: 400 }
+          );
+        }
+        const result = await submitClue(gameId, playerId, clue);
+        return NextResponse.json(result);
+      }
+
+      case 'updateSettings': {
+        const { settings } = payload;
+        if (typeof settings !== 'object' || settings === null) {
+          return NextResponse.json(
+            { success: false, error: 'Settings object required' },
+            { status: 400 }
+          );
+        }
+        const result = await updateSettings(gameId, playerId, settings);
         return NextResponse.json(result);
       }
 

@@ -8,6 +8,29 @@ export type GameState =
   | 'leaderboard'
   | 'finished';
 
+export type GameMode = 'together' | 'remote';
+
+export type ColorComplexity = 'simple' | 'normal' | 'complex';
+
+export interface GameSettings {
+  mode: GameMode;
+  complexity: ColorComplexity;
+  timerEnabled: boolean;
+}
+
+// Grid dimensions for each complexity level
+export const COMPLEXITY_DIMENSIONS: Record<ColorComplexity, { hue: number; chroma: number }> = {
+  simple: { hue: 12, chroma: 10 },   // 120 colors
+  normal: { hue: 24, chroma: 20 },   // 480 colors
+  complex: { hue: 36, chroma: 28 },  // 1008 colors
+};
+
+export const DEFAULT_SETTINGS: GameSettings = {
+  mode: 'together',
+  complexity: 'normal',
+  timerEnabled: true,
+};
+
 export interface Guess {
   playerId: string;
   roundNumber: number;
@@ -35,14 +58,16 @@ export interface Game {
   hostId: string;
   clueGiverId: string | null;
   roundNumber: number;
-  targetHue: number | null; // 0-47 (HUE_SEGMENTS - 1)
-  targetSaturation: number | null; // 0-11 (CHROMA_LEVELS - 1)
+  targetHue: number | null; // Index within complexity dimensions
+  targetSaturation: number | null; // Index within complexity dimensions
   createdAt: number;
   lockedAt: number | null;
   phaseEndTime: number | null; // Timestamp when current phase ends
   players: Player[];
   guesses: Guess[];
   roundScores: RoundScore[];
+  settings: GameSettings;
+  currentClue: string | null; // Text clue in remote mode
 }
 
 export type GameActionType =
@@ -52,6 +77,8 @@ export type GameActionType =
   | 'start'
   | 'advance'
   | 'guess'
+  | 'submitClue'
+  | 'updateSettings'
   | 'end'
   | 'playAgain'
   | 'poll';
@@ -79,10 +106,15 @@ export const PLAYER_COLORS = [
   '#58D68D', // Green
 ];
 
-// Constants - 48x12 = 576 colors for wide variety
-export const HUE_SEGMENTS = 48;
-export const CHROMA_LEVELS = 12;
+// Legacy constants - now use COMPLEXITY_DIMENSIONS based on game settings
+export const HUE_SEGMENTS = 24; // Default to normal complexity
+export const CHROMA_LEVELS = 20;
 export const PHASE_DURATION = 30000; // 30 seconds in ms
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 24;
 export const MAX_NAME_LENGTH = 16;
+
+// Helper to get grid dimensions for a complexity level
+export function getGridDimensions(complexity: ColorComplexity) {
+  return COMPLEXITY_DIMENSIONS[complexity];
+}

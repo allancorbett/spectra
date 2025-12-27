@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { clsx } from 'clsx';
-import { HUE_SEGMENTS, CHROMA_LEVELS, Guess, PLAYER_COLORS } from '@/lib/types';
+import { Guess, PLAYER_COLORS, ColorComplexity, getGridDimensions } from '@/lib/types';
 import { indexToColor } from '@/lib/colors';
 
 // Cell size in pixels - makes cells easy to tap
@@ -21,6 +21,7 @@ interface ColorGridProps {
   onCellClick?: (hue: number, saturation: number) => void;
   disabled?: boolean;
   highlightBestGuess?: boolean;
+  complexity?: ColorComplexity;
 }
 
 export default function ColorGrid({
@@ -35,7 +36,13 @@ export default function ColorGrid({
   onCellClick,
   disabled = false,
   highlightBestGuess = false,
+  complexity = 'normal',
 }: ColorGridProps) {
+  // Get grid dimensions based on complexity
+  const dims = useMemo(() => getGridDimensions(complexity), [complexity]);
+  const hueSegments = dims.hue;
+  const chromaLevels = dims.chroma;
+
   // Generate all cells
   const cells = useMemo(() => {
     const result: {
@@ -45,18 +52,18 @@ export default function ColorGrid({
     }[] = [];
 
     // Go from high chroma (top) to low chroma (bottom)
-    for (let c = CHROMA_LEVELS - 1; c >= 0; c--) {
-      for (let h = 0; h < HUE_SEGMENTS; h++) {
+    for (let c = chromaLevels - 1; c >= 0; c--) {
+      for (let h = 0; h < hueSegments; h++) {
         result.push({
           hue: h,
           chroma: c,
-          color: indexToColor(h, c),
+          color: indexToColor(h, c, hueSegments, chromaLevels),
         });
       }
     }
 
     return result;
-  }, []);
+  }, [hueSegments, chromaLevels]);
 
   // Group guesses by cell position
   const guessesByCell = useMemo(() => {
@@ -96,8 +103,8 @@ export default function ColorGrid({
   }, [guesses, highlightBestGuess]);
 
   // Grid dimensions (cells + gaps)
-  const gridWidth = HUE_SEGMENTS * CELL_SIZE + (HUE_SEGMENTS - 1) * GAP_SIZE;
-  const gridHeight = CHROMA_LEVELS * CELL_SIZE + (CHROMA_LEVELS - 1) * GAP_SIZE;
+  const gridWidth = hueSegments * CELL_SIZE + (hueSegments - 1) * GAP_SIZE;
+  const gridHeight = chromaLevels * CELL_SIZE + (chromaLevels - 1) * GAP_SIZE;
 
   return (
     <div className="w-full">
@@ -114,7 +121,7 @@ export default function ColorGrid({
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `repeat(${HUE_SEGMENTS}, ${CELL_SIZE}px)`,
+            gridTemplateColumns: `repeat(${hueSegments}, ${CELL_SIZE}px)`,
             gap: GAP_SIZE,
             width: gridWidth,
             height: gridHeight,
