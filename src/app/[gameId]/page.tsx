@@ -510,21 +510,19 @@ export default function GamePage({ params }: GamePageProps) {
           </div>
         )}
 
-        {/* Color wheel - only show during reveal */}
+        {/* Color grid - only show during reveal */}
         {game.state === 'reveal' && (
-          <div className="flex justify-center">
-            <ColorWheel
-              size={Math.min(320, typeof window !== 'undefined' ? window.innerWidth - 48 : 320)}
-              targetHue={game.targetHue}
-              targetSaturation={game.targetSaturation}
-              showTarget={true}
-              guesses={game.state === 'reveal' ? currentGuesses : currentGuesses.filter((g) => g.lockedIn)}
-              playerColorMap={playerColorMap}
-              playerNameMap={playerNameMap}
-              highlightBestGuess={game.state === 'reveal'}
-              disabled={true}
-            />
-          </div>
+          <ColorGrid
+            targetHue={game.targetHue}
+            targetSaturation={game.targetSaturation}
+            showTarget={true}
+            guesses={currentGuesses}
+            playerColorMap={playerColorMap}
+            playerNameMap={playerNameMap}
+            highlightBestGuess={true}
+            disabled={true}
+            complexity={game.settings.complexity}
+          />
         )}
 
         {/* Status / Scores */}
@@ -746,19 +744,17 @@ export default function GamePage({ params }: GamePageProps) {
           </div>
         )}
 
-        <div className="flex justify-center">
-          <ColorWheel
-            size={Math.min(320, typeof window !== 'undefined' ? window.innerWidth - 48 : 320)}
-            targetHue={game.targetHue}
-            targetSaturation={game.targetSaturation}
-            showTarget={true}
-            guesses={currentGuesses}
-            playerColorMap={playerColorMap}
-            playerNameMap={playerNameMap}
-            highlightBestGuess={true}
-            disabled={true}
-          />
-        </div>
+        <ColorGrid
+          targetHue={game.targetHue}
+          targetSaturation={game.targetSaturation}
+          showTarget={true}
+          guesses={currentGuesses}
+          playerColorMap={playerColorMap}
+          playerNameMap={playerNameMap}
+          highlightBestGuess={true}
+          disabled={true}
+          complexity={game.settings.complexity}
+        />
 
         <div className="card">
           <h3 className="font-semibold mb-2">Round Scores</h3>
