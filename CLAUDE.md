@@ -10,7 +10,7 @@ Spectra is a browser-based multiplayer party game where one player describes a c
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS 4
 - **Real-time**: Polling-based updates (1 second interval)
-- **State**: In-memory game store (server-side)
+- **State**: Vercel KV (Redis) with in-memory fallback for local dev
 - **QR Codes**: qrcode.react for game sharing
 
 ## Project Structure
@@ -28,7 +28,7 @@ src/
 └── lib/
     ├── types.ts             # TypeScript types and constants
     ├── colors.ts            # Color utilities and scoring
-    ├── gameStore.ts         # In-memory game state management
+    ├── gameStore.ts         # Game state management (KV + memory fallback)
     └── useGame.ts           # React hook for game state
 ```
 
@@ -42,12 +42,13 @@ SVG-based polar grid with 36 hue segments × 8 saturation rings (288 cells). Sup
 - Click/tap interactions
 
 ### Game Store
-In-memory game state management with:
+Game state management with Vercel KV:
+- Automatic fallback to in-memory store for local development
 - Game creation/joining
 - Phase transitions
 - Guess submission
 - Score calculation (Euclidean distance)
-- Auto-cleanup of old games (24 hours)
+- Auto-expiry of games (24 hours TTL)
 
 ### useGame Hook
 Client-side state management with:
@@ -68,22 +69,40 @@ Client-side state management with:
 ## Development
 
 ```bash
-npm run dev      # Start development server
+npm run dev      # Start development server (uses in-memory store)
 npm run build    # Build for production
 npm run lint     # Run ESLint
 ```
 
-## Deployment
+## Deployment with Vercel KV
 
-Deploy to Vercel:
+### 1. Link your project
+```bash
+vercel link
+```
+
+### 2. Create KV database
+```bash
+vercel kv create spectra-games
+```
+
+### 3. Link KV to your project
+The CLI will automatically add the required environment variables:
+- `KV_REST_API_URL`
+- `KV_REST_API_TOKEN`
+
+### 4. Deploy
 ```bash
 vercel
 ```
 
-**Note**: The current implementation uses an in-memory store. For production with multiple serverless instances, consider:
-- Vercel KV (Redis)
-- Supabase
-- Upstash
+### Local Development with KV (optional)
+To test with KV locally, pull the env vars:
+```bash
+vercel env pull .env.local
+```
+
+Without KV configured, the game automatically uses an in-memory store which works fine for local development.
 
 ## Game Rules
 

@@ -1,3 +1,4 @@
+import { kv } from '@vercel/kv';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Game,
@@ -12,25 +13,45 @@ import {
 } from './types';
 import { calculateDistance, generateGameCode, getRandomTarget } from './colors';
 
-// In-memory store (for production, use Redis/database)
-const games: Map<string, Game> = new Map();
+// Game TTL: 24 hours in seconds
+const GAME_TTL_SECONDS = 24 * 60 * 60;
 
-// Clean up old games periodically (games older than 24 hours)
-const GAME_TTL = 24 * 60 * 60 * 1000;
+// Check if KV is configured
+const isKvConfigured = () => {
+  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+};
 
-function cleanupOldGames() {
-  const now = Date.now();
-  for (const [id, game] of games) {
-    if (now - game.createdAt > GAME_TTL) {
-      games.delete(id);
-    }
+// In-memory fallback for local development
+const memoryStore: Map<string, Game> = new Map();
+
+// Key prefix for games in KV
+const gameKey = (gameId: string) => `game:${gameId.toUpperCase()}`;
+
+// Storage abstraction
+async function getGameFromStore(gameId: string): Promise<Game | null> {
+  if (isKvConfigured()) {
+    return await kv.get<Game>(gameKey(gameId));
+  }
+  return memoryStore.get(gameId.toUpperCase()) || null;
+}
+
+async function setGameInStore(game: Game): Promise<void> {
+  if (isKvConfigured()) {
+    await kv.set(gameKey(game.id), game, { ex: GAME_TTL_SECONDS });
+  } else {
+    memoryStore.set(game.id.toUpperCase(), game);
   }
 }
 
-// Run cleanup every hour
-setInterval(cleanupOldGames, 60 * 60 * 1000);
+async function deleteGameFromStore(gameId: string): Promise<boolean> {
+  if (isKvConfigured()) {
+    await kv.del(gameKey(gameId));
+    return true;
+  }
+  return memoryStore.delete(gameId.toUpperCase());
+}
 
-export function createGame(hostPlayerId: string): Game {
+export async function createGame(hostPlayerId: string): Promise<Game> {
   const gameId = generateGameCode();
   const now = Date.now();
 
@@ -50,16 +71,16 @@ export function createGame(hostPlayerId: string): Game {
     roundScores: [],
   };
 
-  games.set(gameId, game);
+  await setGameInStore(game);
   return game;
 }
 
-export function getGame(gameId: string): Game | null {
-  return games.get(gameId.toUpperCase()) || null;
+export async function getGame(gameId: string): Promise<Game | null> {
+  return await getGameFromStore(gameId);
 }
 
-export function getGameForPlayer(gameId: string, playerId: string): Game | null {
-  const game = getGame(gameId);
+export async function getGameForPlayer(gameId: string, playerId: string): Promise<Game | null> {
+  const game = await getGame(gameId);
   if (!game) return null;
 
   // Update player's last seen time
@@ -67,17 +88,18 @@ export function getGameForPlayer(gameId: string, playerId: string): Game | null 
   if (player) {
     player.lastSeen = Date.now();
     player.isConnected = true;
+    await setGameInStore(game);
   }
 
   return game;
 }
 
-export function joinGame(
+export async function joinGame(
   gameId: string,
   playerId: string,
   name: string
-): { success: boolean; error?: string; game?: Game } {
-  const game = getGame(gameId);
+): Promise<{ success: boolean; error?: string; game?: Game }> {
+  const game = await getGame(gameId);
   if (!game) {
     return { success: false, error: 'Game not found' };
   }
@@ -95,6 +117,7 @@ export function joinGame(
   if (existingPlayer) {
     existingPlayer.isConnected = true;
     existingPlayer.lastSeen = Date.now();
+    await setGameInStore(game);
     return { success: true, game };
   }
 
@@ -124,11 +147,12 @@ export function joinGame(
   };
 
   game.players.push(player);
+  await setGameInStore(game);
   return { success: true, game };
 }
 
-export function leaveGame(gameId: string, playerId: string): Game | null {
-  const game = getGame(gameId);
+export async function leaveGame(gameId: string, playerId: string): Promise<Game | null> {
+  const game = await getGame(gameId);
   if (!game) return null;
 
   if (game.state === 'lobby') {
@@ -142,7 +166,7 @@ export function leaveGame(gameId: string, playerId: string): Game | null {
 
     // Delete game if empty
     if (game.players.length === 0) {
-      games.delete(gameId);
+      await deleteGameFromStore(gameId);
       return null;
     }
   } else {
@@ -153,11 +177,12 @@ export function leaveGame(gameId: string, playerId: string): Game | null {
     }
   }
 
+  await setGameInStore(game);
   return game;
 }
 
-export function startGame(gameId: string, playerId: string): { success: boolean; error?: string; game?: Game } {
-  const game = getGame(gameId);
+export async function startGame(gameId: string, playerId: string): Promise<{ success: boolean; error?: string; game?: Game }> {
+  const game = await getGame(gameId);
   if (!game) {
     return { success: false, error: 'Game not found' };
   }
@@ -179,6 +204,7 @@ export function startGame(gameId: string, playerId: string): { success: boolean;
   game.clueGiverId = game.hostId;
   startNewRound(game);
 
+  await setGameInStore(game);
   return { success: true, game };
 }
 
@@ -194,11 +220,11 @@ function startNewRound(game: Game) {
   game.guesses = game.guesses.filter((g) => g.roundNumber !== game.roundNumber);
 }
 
-export function advancePhase(
+export async function advancePhase(
   gameId: string,
   playerId: string
-): { success: boolean; error?: string; game?: Game } {
-  const game = getGame(gameId);
+): Promise<{ success: boolean; error?: string; game?: Game }> {
+  const game = await getGame(gameId);
   if (!game) {
     return { success: false, error: 'Game not found' };
   }
@@ -241,6 +267,7 @@ export function advancePhase(
   // Start new round if coming from leaderboard
   if (game.state === 'leaderboard' && nextState === 'clue-1') {
     startNewRound(game);
+    await setGameInStore(game);
     return { success: true, game };
   }
 
@@ -249,17 +276,18 @@ export function advancePhase(
     ? Date.now() + PHASE_DURATION
     : null;
 
+  await setGameInStore(game);
   return { success: true, game };
 }
 
-export function submitGuess(
+export async function submitGuess(
   gameId: string,
   playerId: string,
   hue: number,
   saturation: number,
   lockIn: boolean
-): { success: boolean; error?: string; game?: Game } {
-  const game = getGame(gameId);
+): Promise<{ success: boolean; error?: string; game?: Game }> {
+  const game = await getGame(gameId);
   if (!game) {
     return { success: false, error: 'Game not found' };
   }
@@ -330,6 +358,7 @@ export function submitGuess(
     }
   }
 
+  await setGameInStore(game);
   return { success: true, game };
 }
 
@@ -375,8 +404,8 @@ function calculateRoundScores(game: Game) {
   game.roundScores = scores;
 }
 
-export function endGame(gameId: string, playerId: string): { success: boolean; error?: string; game?: Game } {
-  const game = getGame(gameId);
+export async function endGame(gameId: string, playerId: string): Promise<{ success: boolean; error?: string; game?: Game }> {
+  const game = await getGame(gameId);
   if (!game) {
     return { success: false, error: 'Game not found' };
   }
@@ -392,11 +421,12 @@ export function endGame(gameId: string, playerId: string): { success: boolean; e
   game.state = 'finished';
   game.phaseEndTime = null;
 
+  await setGameInStore(game);
   return { success: true, game };
 }
 
-export function playAgain(gameId: string, playerId: string): { success: boolean; error?: string; game?: Game } {
-  const game = getGame(gameId);
+export async function playAgain(gameId: string, playerId: string): Promise<{ success: boolean; error?: string; game?: Game }> {
+  const game = await getGame(gameId);
   if (!game) {
     return { success: false, error: 'Game not found' };
   }
@@ -425,12 +455,15 @@ export function playAgain(gameId: string, playerId: string): { success: boolean;
   game.state = 'lobby';
   game.phaseEndTime = null;
 
+  await setGameInStore(game);
   return { success: true, game };
 }
 
-export function checkAndAdvancePhase(gameId: string): Game | null {
-  const game = getGame(gameId);
+export async function checkAndAdvancePhase(gameId: string): Promise<Game | null> {
+  const game = await getGame(gameId);
   if (!game) return null;
+
+  let updated = false;
 
   // Auto-advance if phase timer expired
   if (game.phaseEndTime && Date.now() >= game.phaseEndTime) {
@@ -439,6 +472,7 @@ export function checkAndAdvancePhase(gameId: string): Game | null {
       lockUnlockedGuesses(game, 1);
       game.state = 'clue-2';
       game.phaseEndTime = Date.now() + PHASE_DURATION;
+      updated = true;
     } else if (game.state === 'guess-2') {
       // Lock in any placed guesses and reveal
       lockUnlockedGuesses(game, 2);
@@ -451,12 +485,18 @@ export function checkAndAdvancePhase(gameId: string): Game | null {
       }
       game.state = 'reveal';
       game.phaseEndTime = null;
+      updated = true;
     } else if (game.state === 'clue-1' || game.state === 'clue-2') {
       // Auto-advance clue phases if timer expires
       const nextState = game.state === 'clue-1' ? 'guess-1' : 'guess-2';
       game.state = nextState;
       game.phaseEndTime = Date.now() + PHASE_DURATION;
+      updated = true;
     }
+  }
+
+  if (updated) {
+    await setGameInStore(game);
   }
 
   return game;
@@ -470,8 +510,8 @@ function lockUnlockedGuesses(game: Game, guessNumber: 1 | 2) {
   }
 }
 
-export function deleteGame(gameId: string): boolean {
-  return games.delete(gameId.toUpperCase());
+export async function deleteGame(gameId: string): Promise<boolean> {
+  return await deleteGameFromStore(gameId);
 }
 
 // Get player ID from localStorage key

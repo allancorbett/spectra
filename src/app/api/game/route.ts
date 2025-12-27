@@ -21,51 +21,51 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'create': {
         const newPlayerId = playerId || createPlayerId();
-        const game = createGame(newPlayerId);
+        const game = await createGame(newPlayerId);
         return NextResponse.json({ success: true, game, playerId: newPlayerId });
       }
 
       case 'join': {
         const { name } = payload;
-        const result = joinGame(gameId, playerId, name);
+        const result = await joinGame(gameId, playerId, name);
         return NextResponse.json(result);
       }
 
       case 'leave': {
-        const game = leaveGame(gameId, playerId);
+        const game = await leaveGame(gameId, playerId);
         return NextResponse.json({ success: true, game });
       }
 
       case 'start': {
-        const result = startGame(gameId, playerId);
+        const result = await startGame(gameId, playerId);
         return NextResponse.json(result);
       }
 
       case 'advance': {
-        const result = advancePhase(gameId, playerId);
+        const result = await advancePhase(gameId, playerId);
         return NextResponse.json(result);
       }
 
       case 'guess': {
         const { hue, saturation, lockIn } = payload;
-        const result = submitGuess(gameId, playerId, hue, saturation, lockIn);
+        const result = await submitGuess(gameId, playerId, hue, saturation, lockIn);
         return NextResponse.json(result);
       }
 
       case 'end': {
-        const result = endGame(gameId, playerId);
+        const result = await endGame(gameId, playerId);
         return NextResponse.json(result);
       }
 
       case 'playAgain': {
-        const result = playAgain(gameId, playerId);
+        const result = await playAgain(gameId, playerId);
         return NextResponse.json(result);
       }
 
       case 'poll': {
         // Check for phase auto-advance
-        checkAndAdvancePhase(gameId);
-        const game = getGame(gameId);
+        await checkAndAdvancePhase(gameId);
+        const game = await getGame(gameId);
         if (!game) {
           return NextResponse.json({ success: false, error: 'Game not found' });
         }
@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Check for phase auto-advance
-  checkAndAdvancePhase(gameId);
-  const game = getGame(gameId);
+  await checkAndAdvancePhase(gameId);
+  const game = await getGame(gameId);
 
   if (!game) {
     return NextResponse.json({ success: false, error: 'Game not found' }, { status: 404 });
