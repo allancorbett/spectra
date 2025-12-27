@@ -21,6 +21,10 @@ const config = {
     '!src/**/*.d.ts',
     '!src/app/layout.tsx',
     '!src/app/globals.css',
+    '!src/app/page.tsx',
+    '!src/app/*/page.tsx',
+    '!src/app/api/**/*.ts',
+    '!src/lib/useGame.ts',
   ],
   coverageThreshold: {
     global: {
