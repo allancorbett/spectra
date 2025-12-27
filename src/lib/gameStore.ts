@@ -440,7 +440,8 @@ function calculateRoundScores(game: Game) {
   }
 
   // Calculate clue-giver's score as the average of all guesser scores
-  if (clueGiver && scores.length > 0) {
+  // Only if there are more than 2 players (with 2 players, clue-giver gets no points)
+  if (clueGiver && scores.length > 1) {
     const totalPoints = scores.reduce((sum, s) => sum + s.points, 0);
     const averagePoints = Math.round(totalPoints / scores.length);
     scores.push({
