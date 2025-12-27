@@ -32,7 +32,7 @@ export default function ColorGrid({
   disabled = false,
   highlightBestGuess = false,
 }: ColorGridProps) {
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(2); // Start zoomed in for bigger cells
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const lastTouchRef = useRef<{ x: number; y: number; dist: number } | null>(null);
@@ -108,8 +108,8 @@ export default function ColorGrid({
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       lastTouchRef.current = { x: midX, y: midY, dist };
       setIsDragging(true);
-    } else if (e.touches.length === 1 && scale > 1) {
-      // Pan start (only when zoomed)
+    } else if (e.touches.length === 1) {
+      // Pan start
       lastTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, dist: 0 };
       setIsDragging(true);
     }
@@ -131,14 +131,16 @@ export default function ColorGrid({
       const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       lastTouchRef.current = { x: midX, y: midY, dist };
-    } else if (e.touches.length === 1 && scale > 1) {
+    } else if (e.touches.length === 1) {
       // Pan
       const deltaX = e.touches[0].clientX - lastTouchRef.current.x;
       const deltaY = e.touches[0].clientY - lastTouchRef.current.y;
 
+      // Limit panning based on scale
+      const maxPan = 150 * (scale - 1);
       setPosition(p => ({
-        x: Math.max(-100 * (scale - 1), Math.min(100 * (scale - 1), p.x + deltaX)),
-        y: Math.max(-100 * (scale - 1), Math.min(100 * (scale - 1), p.y + deltaY)),
+        x: Math.max(-maxPan, Math.min(maxPan, p.x + deltaX)),
+        y: Math.max(-maxPan, Math.min(maxPan, p.y + deltaY)),
       }));
 
       lastTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, dist: 0 };
@@ -156,17 +158,18 @@ export default function ColorGrid({
     }
   }, [scale]);
 
-  // Double tap to zoom
+  // Double tap to toggle zoom (between 1x and 2x)
   const lastTapRef = useRef<number>(0);
   const handleDoubleTap = useCallback(() => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
-      // Double tap detected
-      if (scale > 1) {
+      // Double tap detected - toggle between 1x and 2x
+      if (scale >= 2) {
         setScale(1);
         setPosition({ x: 0, y: 0 });
       } else {
         setScale(2);
+        setPosition({ x: 0, y: 0 });
       }
     }
     lastTapRef.current = now;
@@ -176,7 +179,7 @@ export default function ColorGrid({
     <div className="w-full max-w-lg mx-auto px-2">
       {/* Zoom hint */}
       <p className="text-xs text-center text-foreground/40 mb-2">
-        Pinch to zoom • Double-tap to toggle zoom
+        Drag to pan • Pinch to zoom • Double-tap to zoom out
       </p>
 
       <div
