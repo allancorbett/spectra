@@ -42,6 +42,19 @@ const memoryStore: Map<string, Game> = new Map();
 // Key prefix for games
 const gameKey = (gameId: string) => `game:${gameId.toUpperCase()}`;
 
+// Get next clue-giver in sequential order (by join time)
+function getNextClueGiver(game: Game): string {
+  // Sort players by join time
+  const sortedPlayers = [...game.players].sort((a, b) => a.joinedAt - b.joinedAt);
+
+  // Find current clue-giver's index
+  const currentIndex = sortedPlayers.findIndex((p) => p.id === game.clueGiverId);
+
+  // Get next player (wrap around to start)
+  const nextIndex = (currentIndex + 1) % sortedPlayers.length;
+  return sortedPlayers[nextIndex].id;
+}
+
 // Storage abstraction
 async function getGameFromStore(gameId: string): Promise<Game | null> {
   const client = getRedis();
@@ -290,13 +303,8 @@ export async function advancePhase(
   // Special handling for reveal phase - calculate scores
   if (game.state === 'guess-2' && nextState === 'reveal') {
     calculateRoundScores(game);
-    // Determine next clue-giver (lowest score this round, ties broken randomly)
-    const lowestScore = Math.min(...game.roundScores.map((s) => s.points));
-    const candidates = game.roundScores.filter((s) => s.points === lowestScore);
-    const nextClueGiver = candidates[Math.floor(Math.random() * candidates.length)];
-    if (nextClueGiver) {
-      game.clueGiverId = nextClueGiver.playerId;
-    }
+    // Rotate to next clue-giver in join order
+    game.clueGiverId = getNextClueGiver(game);
   }
 
   // Start new round if coming from leaderboard
@@ -381,12 +389,8 @@ export async function submitGuess(
       const nextState = game.state === 'guess-1' ? 'clue-2' : 'reveal';
       if (nextState === 'reveal') {
         calculateRoundScores(game);
-        const lowestScore = Math.min(...game.roundScores.map((s) => s.points));
-        const candidates = game.roundScores.filter((s) => s.points === lowestScore);
-        const nextClueGiver = candidates[Math.floor(Math.random() * candidates.length)];
-        if (nextClueGiver) {
-          game.clueGiverId = nextClueGiver.playerId;
-        }
+        // Rotate to next clue-giver in join order
+        game.clueGiverId = getNextClueGiver(game);
       }
       game.state = nextState as GameState;
       game.phaseEndTime = nextState === 'clue-2' ? Date.now() + PHASE_DURATION : null;
@@ -512,12 +516,8 @@ export async function checkAndAdvancePhase(gameId: string): Promise<Game | null>
       // Lock in any placed guesses and reveal
       lockUnlockedGuesses(game, 2);
       calculateRoundScores(game);
-      const lowestScore = Math.min(...game.roundScores.map((s) => s.points));
-      const candidates = game.roundScores.filter((s) => s.points === lowestScore);
-      const nextClueGiver = candidates[Math.floor(Math.random() * candidates.length)];
-      if (nextClueGiver) {
-        game.clueGiverId = nextClueGiver.playerId;
-      }
+      // Rotate to next clue-giver in join order
+      game.clueGiverId = getNextClueGiver(game);
       game.state = 'reveal';
       game.phaseEndTime = null;
       updated = true;
