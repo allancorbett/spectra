@@ -2,7 +2,7 @@
 
 ## Overview
 
-Colour Clues is a browser-based party game for 2-24 players. One player describes a colour using words (without saying colour names), and other players try to locate that exact spot on a colour wheel. Closest guesses win. The game is played in person with players using their own devices - clues are spoken aloud, not typed.
+Spectra is a browser-based party game for 2-24 players. One player describes a colour using words (without saying colour names), and other players try to locate that exact spot on a colour wheel. Closest guesses win. The game is played in person with players using their own devices - clues are spoken aloud, not typed.
 
 -----
 
