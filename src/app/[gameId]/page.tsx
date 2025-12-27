@@ -75,20 +75,19 @@ export default function GamePage({ params }: GamePageProps) {
     }
   }, [game, playerId]);
 
-  // Timer calculation
-  const timeLeft = useMemo(() => {
-    if (!game?.phaseEndTime) return null;
-    const remaining = Math.max(0, game.phaseEndTime - Date.now());
-    return Math.ceil(remaining / 1000);
-  }, [game?.phaseEndTime]);
-
-  // Update timer every 100ms
-  const [, setTick] = useState(0);
+  // Timer calculation with live updates
+  const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!game?.phaseEndTime) return;
-    const interval = setInterval(() => setTick((t) => t + 1), 100);
+    const interval = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(interval);
   }, [game?.phaseEndTime]);
+
+  const timeLeft = useMemo(() => {
+    if (!game?.phaseEndTime) return null;
+    const remaining = Math.max(0, game.phaseEndTime - now);
+    return Math.ceil(remaining / 1000);
+  }, [game?.phaseEndTime, now]);
 
   // Player color and name maps
   const playerColorMap = useMemo(() => {
