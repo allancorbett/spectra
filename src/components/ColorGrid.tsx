@@ -7,6 +7,7 @@ import { hslToColor } from '@/lib/colors';
 
 // Cell size in pixels - makes cells easy to tap
 const CELL_SIZE = 32;
+const GAP_SIZE = 2;
 
 interface ColorGridProps {
   targetHue?: number | null;
@@ -94,9 +95,9 @@ export default function ColorGrid({
     return bestGuessKeys;
   }, [guesses, highlightBestGuess]);
 
-  // Grid dimensions
-  const gridWidth = HUE_SEGMENTS * CELL_SIZE;
-  const gridHeight = CHROMA_LEVELS * CELL_SIZE;
+  // Grid dimensions (cells + gaps)
+  const gridWidth = HUE_SEGMENTS * CELL_SIZE + (HUE_SEGMENTS - 1) * GAP_SIZE;
+  const gridHeight = CHROMA_LEVELS * CELL_SIZE + (CHROMA_LEVELS - 1) * GAP_SIZE;
 
   return (
     <div className="w-full">
@@ -108,12 +109,13 @@ export default function ColorGrid({
       {/* Scrollable container */}
       <div
         className="overflow-auto rounded-xl"
-        style={{ height: '55vh', maxHeight: '400px' }}
+        style={{ height: '70dvh', maxHeight: '800px' }}
       >
         <div
           className="grid"
           style={{
             gridTemplateColumns: `repeat(${HUE_SEGMENTS}, ${CELL_SIZE}px)`,
+            gap: GAP_SIZE,
             width: gridWidth,
             height: gridHeight,
           }}
