@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { clsx } from 'clsx';
-import { HUE_SEGMENTS, CHROMA_LEVELS, Guess, PLAYER_COLORS } from '@/lib/types';
+import { Guess, PLAYER_COLORS, ColorComplexity, getGridDimensions } from '@/lib/types';
 import { indexToColor } from '@/lib/colors';
 
 interface ColorWheelProps {
@@ -18,6 +18,7 @@ interface ColorWheelProps {
   onCellClick?: (hue: number, saturation: number) => void;
   disabled?: boolean;
   highlightBestGuess?: boolean;
+  complexity?: ColorComplexity;
 }
 
 export default function ColorWheel({
@@ -33,12 +34,18 @@ export default function ColorWheel({
   onCellClick,
   disabled = false,
   highlightBestGuess = false,
+  complexity = 'normal',
 }: ColorWheelProps) {
+  // Get grid dimensions based on complexity
+  const dims = getGridDimensions(complexity);
+  const hueSegments = dims.hue;
+  const chromaLevels = dims.chroma;
+
   const centerX = size / 2;
   const centerY = size / 2;
   const innerRadius = size * 0.08; // Empty center
   const outerRadius = size * 0.48;
-  const ringWidth = (outerRadius - innerRadius) / CHROMA_LEVELS;
+  const ringWidth = (outerRadius - innerRadius) / chromaLevels;
 
   // Generate cell paths
   const cells = useMemo(() => {
@@ -49,10 +56,10 @@ export default function ColorWheel({
       color: string;
     }[] = [];
 
-    for (let h = 0; h < HUE_SEGMENTS; h++) {
-      for (let s = 0; s < CHROMA_LEVELS; s++) {
-        const startAngle = (h / HUE_SEGMENTS) * 360 - 90; // Start at top
-        const endAngle = ((h + 1) / HUE_SEGMENTS) * 360 - 90;
+    for (let h = 0; h < hueSegments; h++) {
+      for (let s = 0; s < chromaLevels; s++) {
+        const startAngle = (h / hueSegments) * 360 - 90; // Start at top
+        const endAngle = ((h + 1) / hueSegments) * 360 - 90;
         const innerR = innerRadius + s * ringWidth;
         const outerR = innerRadius + (s + 1) * ringWidth;
 
@@ -81,17 +88,17 @@ export default function ColorWheel({
           hue: h,
           saturation: s,
           path,
-          color: indexToColor(h, s),
+          color: indexToColor(h, s, hueSegments, chromaLevels),
         });
       }
     }
 
     return result;
-  }, [centerX, centerY, innerRadius, ringWidth]);
+  }, [centerX, centerY, innerRadius, ringWidth, hueSegments, chromaLevels]);
 
   // Get position for a cell (for markers)
   const getCellPosition = (hue: number, saturation: number) => {
-    const angle = ((hue + 0.5) / HUE_SEGMENTS) * 360 - 90;
+    const angle = ((hue + 0.5) / hueSegments) * 360 - 90;
     const radius = innerRadius + (saturation + 0.5) * ringWidth;
     const rad = (angle * Math.PI) / 180;
     return {

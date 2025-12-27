@@ -8,7 +8,7 @@ import ColorWheel from '@/components/ColorWheel';
 import ColorGrid from '@/components/ColorGrid';
 import { useGame, getPlayerId, setPlayerId } from '@/lib/useGame';
 import { indexToColor } from '@/lib/colors';
-import { PLAYER_COLORS, PHASE_DURATION, MIN_PLAYERS } from '@/lib/types';
+import { PLAYER_COLORS, PHASE_DURATION, MIN_PLAYERS, GameMode, ColorComplexity, getGridDimensions } from '@/lib/types';
 
 interface GamePageProps {
   params: Promise<{ gameId: string }>;
@@ -30,6 +30,8 @@ export default function GamePage({ params }: GamePageProps) {
     startGame,
     advancePhase,
     submitGuess,
+    submitClue,
+    updateSettings,
     endGame,
     playAgain,
     loadGame,
@@ -42,6 +44,8 @@ export default function GamePage({ params }: GamePageProps) {
   const [selectedSat, setSelectedSat] = useState<number | null>(null);
   const [hasLockedIn, setHasLockedIn] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [clueInput, setClueInput] = useState('');
+  const [clueError, setClueError] = useState<string | null>(null);
 
   // Initialize player ID
   useEffect(() => {
@@ -56,6 +60,11 @@ export default function GamePage({ params }: GamePageProps) {
       setSelectedHue(null);
       setSelectedSat(null);
       setHasLockedIn(false);
+    }
+    // Reset clue input on clue phase change
+    if (game?.state === 'clue-1' || game?.state === 'clue-2') {
+      setClueInput('');
+      setClueError(null);
     }
   }, [game?.state]);
 
@@ -139,6 +148,21 @@ export default function GamePage({ params }: GamePageProps) {
     await submitGuess(selectedHue, selectedSat, true);
     setHasLockedIn(true);
   };
+
+  // Handle clue submission
+  const handleSubmitClue = async () => {
+    if (!clueInput.trim()) return;
+    setClueError(null);
+    const result = await submitClue(clueInput.trim());
+    if (!result.success && result.error) {
+      setClueError(result.error);
+    }
+  };
+
+  // Grid dimensions for complexity
+  const gridDims = useMemo(() => {
+    return game ? getGridDimensions(game.settings.complexity) : getGridDimensions('normal');
+  }, [game?.settings?.complexity]);
 
   // Copy game URL
   const copyGameUrl = () => {
@@ -257,6 +281,100 @@ export default function GamePage({ params }: GamePageProps) {
           </div>
         )}
 
+        {/* Game Settings (host only) */}
+        {isHost && (
+          <div className="card">
+            <h2 className="font-semibold mb-3">Game Settings</h2>
+
+            {/* Mode Selection */}
+            <div className="mb-4">
+              <label className="text-sm text-foreground/60 block mb-2">Play Mode</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => updateSettings({ mode: 'together' })}
+                  className={clsx(
+                    'p-3 rounded-lg text-sm font-medium transition-colors',
+                    game.settings.mode === 'together'
+                      ? 'bg-primary text-white'
+                      : 'bg-secondary hover:bg-secondary/80'
+                  )}
+                >
+                  Together
+                  <span className="block text-xs opacity-70">Same room</span>
+                </button>
+                <button
+                  onClick={() => updateSettings({ mode: 'remote' })}
+                  className={clsx(
+                    'p-3 rounded-lg text-sm font-medium transition-colors',
+                    game.settings.mode === 'remote'
+                      ? 'bg-primary text-white'
+                      : 'bg-secondary hover:bg-secondary/80'
+                  )}
+                >
+                  Remote
+                  <span className="block text-xs opacity-70">Type clues</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Complexity Selection */}
+            <div className="mb-4">
+              <label className="text-sm text-foreground/60 block mb-2">Color Complexity</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['simple', 'normal', 'complex'] as const).map((level) => {
+                  const dims = getGridDimensions(level);
+                  return (
+                    <button
+                      key={level}
+                      onClick={() => updateSettings({ complexity: level })}
+                      className={clsx(
+                        'p-2 rounded-lg text-sm font-medium transition-colors',
+                        game.settings.complexity === level
+                          ? 'bg-primary text-white'
+                          : 'bg-secondary hover:bg-secondary/80'
+                      )}
+                    >
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                      <span className="block text-xs opacity-70">{dims.hue * dims.chroma}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Timer Toggle */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground/60">30s Timer</span>
+              <button
+                onClick={() => updateSettings({ timerEnabled: !game.settings.timerEnabled })}
+                className={clsx(
+                  'relative w-12 h-6 rounded-full transition-colors',
+                  game.settings.timerEnabled ? 'bg-primary' : 'bg-secondary'
+                )}
+              >
+                <div
+                  className={clsx(
+                    'absolute top-1 w-4 h-4 rounded-full bg-white transition-transform',
+                    game.settings.timerEnabled ? 'translate-x-7' : 'translate-x-1'
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Settings display for non-hosts */}
+        {!isHost && (
+          <div className="card">
+            <h2 className="font-semibold mb-2">Game Settings</h2>
+            <div className="text-sm text-foreground/60 space-y-1">
+              <p>Mode: <span className="text-foreground">{game.settings.mode === 'together' ? 'Together (same room)' : 'Remote (typed clues)'}</span></p>
+              <p>Colors: <span className="text-foreground">{game.settings.complexity} ({gridDims.hue * gridDims.chroma})</span></p>
+              <p>Timer: <span className="text-foreground">{game.settings.timerEnabled ? '30 seconds' : 'Off'}</span></p>
+            </div>
+          </div>
+        )}
+
         {/* Player list */}
         <div className="card flex-1">
           <h2 className="font-semibold mb-3">Players</h2>
@@ -324,8 +442,9 @@ export default function GamePage({ params }: GamePageProps) {
     : 0;
   const guesserCount = game.players.filter((p) => p.id !== game.clueGiverId).length;
 
-  // Timer bar percentage
-  const timerPercent = timeLeft !== null ? (timeLeft / (PHASE_DURATION / 1000)) * 100 : 100;
+  // Timer bar percentage (only when timer is enabled)
+  const timerEnabled = game?.settings?.timerEnabled ?? true;
+  const timerPercent = timerEnabled && timeLeft !== null ? (timeLeft / (PHASE_DURATION / 1000)) * 100 : 100;
 
   // Clue-giver view
   if (isClueGiver) {
@@ -345,7 +464,7 @@ export default function GamePage({ params }: GamePageProps) {
         </div>
 
         {/* Timer */}
-        {timeLeft !== null && (
+        {timerEnabled && timeLeft !== null && (
           <div className="timer-bar">
             <div className="timer-bar-fill" style={{ width: `${timerPercent}%` }} />
           </div>
@@ -356,8 +475,38 @@ export default function GamePage({ params }: GamePageProps) {
           <div className="flex justify-center">
             <div
               className="w-32 h-32 rounded-2xl shadow-lg animate-pulse-glow"
-              style={{ backgroundColor: indexToColor(game.targetHue, game.targetSaturation) }}
+              style={{ backgroundColor: indexToColor(game.targetHue, game.targetSaturation, gridDims.hue, gridDims.chroma) }}
             />
+          </div>
+        )}
+
+        {/* Clue input for remote mode */}
+        {game.settings.mode === 'remote' && (game.state === 'clue-1' || game.state === 'clue-2') && (
+          <div className="card">
+            <label className="text-sm text-foreground/60 block mb-2">
+              Type your {game.state === 'clue-1' ? 'ONE word' : 'TWO word'} clue:
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={clueInput}
+                onChange={(e) => setClueInput(e.target.value)}
+                placeholder={game.state === 'clue-1' ? 'e.g., forest' : 'e.g., ocean sunset'}
+                className="input flex-1"
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmitClue()}
+              />
+              <button
+                onClick={handleSubmitClue}
+                disabled={!clueInput.trim()}
+                className="btn btn-primary px-4"
+              >
+                Send
+              </button>
+            </div>
+            {clueError && <p className="text-error text-sm mt-2">{clueError}</p>}
+            {game.currentClue && (
+              <p className="text-success text-sm mt-2">Current clue: &quot;{game.currentClue}&quot;</p>
+            )}
           </div>
         )}
 
@@ -365,15 +514,16 @@ export default function GamePage({ params }: GamePageProps) {
         {game.state === 'reveal' && (
           <div className="flex justify-center">
             <ColorWheel
-              size={Math.min(320, typeof window !== 'undefined' ? window.innerWidth - 48 : 320)}
+              size={320}
               targetHue={game.targetHue}
               targetSaturation={game.targetSaturation}
               showTarget={true}
-              guesses={game.state === 'reveal' ? currentGuesses : currentGuesses.filter((g) => g.lockedIn)}
+              guesses={currentGuesses}
               playerColorMap={playerColorMap}
               playerNameMap={playerNameMap}
-              highlightBestGuess={game.state === 'reveal'}
+              highlightBestGuess={true}
               disabled={true}
+              complexity={game.settings.complexity}
             />
           </div>
         )}
@@ -382,7 +532,7 @@ export default function GamePage({ params }: GamePageProps) {
         {(game.state === 'guess-1' || game.state === 'guess-2') && (
           <div className="text-center">
             <p className="text-foreground/60">{lockedInCount}/{guesserCount} players locked in</p>
-            {timeLeft !== null && <p className="text-2xl font-bold">{timeLeft}s</p>}
+            {timerEnabled && timeLeft !== null && <p className="text-2xl font-bold">{timeLeft}s</p>}
           </div>
         )}
 
@@ -477,19 +627,36 @@ export default function GamePage({ params }: GamePageProps) {
 
   // Guesser view
   if (game.state === 'clue-1' || game.state === 'clue-2') {
+    const clueGiver = game.players.find((p) => p.id === game.clueGiverId);
+
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
         <div className="text-center">
           <p className="text-sm text-foreground/60">Round {game.roundNumber}</p>
-          <h2 className="text-2xl font-bold mb-4">Listen for the clue!</h2>
-          <p className="text-foreground/60">
-            {game.state === 'clue-1' ? 'ONE word' : 'TWO words'}
-          </p>
+          {game.settings.mode === 'remote' ? (
+            <>
+              <h2 className="text-2xl font-bold mb-4">
+                {game.currentClue ? 'The clue is:' : `Waiting for ${clueGiver?.name}'s clue...`}
+              </h2>
+              {game.currentClue && (
+                <p className="text-3xl font-bold text-primary animate-pulse">
+                  &quot;{game.currentClue}&quot;
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold mb-4">Listen for the clue!</h2>
+              <p className="text-foreground/60">
+                {game.state === 'clue-1' ? 'ONE word' : 'TWO words'}
+              </p>
+            </>
+          )}
         </div>
         <div className="animate-pulse">
           <ColorWheel size={200} disabled />
         </div>
-        {timeLeft !== null && (
+        {timerEnabled && timeLeft !== null && (
           <p className="text-3xl font-bold">{timeLeft}s</p>
         )}
       </div>
@@ -513,7 +680,7 @@ export default function GamePage({ params }: GamePageProps) {
         </div>
 
         {/* Timer */}
-        {timeLeft !== null && (
+        {timerEnabled && timeLeft !== null && (
           <div className="timer-bar">
             <div className="timer-bar-fill" style={{ width: `${timerPercent}%` }} />
           </div>
@@ -527,6 +694,7 @@ export default function GamePage({ params }: GamePageProps) {
           playerNameMap={playerNameMap}
           onCellClick={handleCellClick}
           disabled={hasLockedIn}
+          complexity={game.settings.complexity}
         />
 
         {/* Selected color preview */}
@@ -534,7 +702,7 @@ export default function GamePage({ params }: GamePageProps) {
           <div className="flex justify-center">
             <div
               className="w-16 h-16 rounded-xl shadow-lg"
-              style={{ backgroundColor: indexToColor(selectedHue, selectedSat) }}
+              style={{ backgroundColor: indexToColor(selectedHue, selectedSat, gridDims.hue, gridDims.chroma) }}
             />
           </div>
         )}
@@ -549,7 +717,7 @@ export default function GamePage({ params }: GamePageProps) {
               Lock In
             </button>
           )}
-          {timeLeft !== null && (
+          {timerEnabled && timeLeft !== null && (
             <p className="text-center text-2xl font-bold">{timeLeft}s</p>
           )}
           <p className="text-center text-foreground/60 text-sm">
@@ -574,14 +742,14 @@ export default function GamePage({ params }: GamePageProps) {
           <div className="flex justify-center">
             <div
               className="w-20 h-20 rounded-2xl shadow-lg"
-              style={{ backgroundColor: indexToColor(game.targetHue, game.targetSaturation) }}
+              style={{ backgroundColor: indexToColor(game.targetHue, game.targetSaturation, gridDims.hue, gridDims.chroma) }}
             />
           </div>
         )}
 
         <div className="flex justify-center">
           <ColorWheel
-            size={Math.min(320, typeof window !== 'undefined' ? window.innerWidth - 48 : 320)}
+            size={320}
             targetHue={game.targetHue}
             targetSaturation={game.targetSaturation}
             showTarget={true}
@@ -590,6 +758,7 @@ export default function GamePage({ params }: GamePageProps) {
             playerNameMap={playerNameMap}
             highlightBestGuess={true}
             disabled={true}
+            complexity={game.settings.complexity}
           />
         </div>
 
