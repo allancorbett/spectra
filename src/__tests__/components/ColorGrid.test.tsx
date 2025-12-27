@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import ColorGrid from '@/components/ColorGrid';
-import { Guess } from '@/lib/types';
+import { Guess, HUE_SEGMENTS, CHROMA_LEVELS } from '@/lib/types';
 
 describe('ColorGrid', () => {
   it('renders scroll hint', () => {
@@ -8,39 +8,23 @@ describe('ColorGrid', () => {
     expect(screen.getByText('Scroll to explore colors')).toBeInTheDocument();
   });
 
-  it('renders correct number of cells for normal complexity', () => {
-    const { container } = render(<ColorGrid complexity="normal" />);
-    // Normal = 24 hues × 20 chroma = 480 cells
+  it('renders correct number of cells', () => {
+    const { container } = render(<ColorGrid />);
+    // Grid is HUE_SEGMENTS × CHROMA_LEVELS = 48 × 12 = 576 cells
     const cells = container.querySelectorAll('.grid > div');
-    expect(cells).toHaveLength(480);
-  });
-
-  it('renders correct number of cells for simple complexity', () => {
-    const { container } = render(<ColorGrid complexity="simple" />);
-    // Simple = 12 hues × 10 chroma = 120 cells
-    const cells = container.querySelectorAll('.grid > div');
-    expect(cells).toHaveLength(120);
-  });
-
-  it('renders correct number of cells for complex complexity', () => {
-    const { container } = render(<ColorGrid complexity="complex" />);
-    // Complex = 36 hues × 28 chroma = 1008 cells
-    const cells = container.querySelectorAll('.grid > div');
-    expect(cells).toHaveLength(1008);
+    expect(cells).toHaveLength(HUE_SEGMENTS * CHROMA_LEVELS);
   });
 
   it('calls onCellClick when cell is clicked', () => {
     const handleClick = jest.fn();
-    const { container } = render(
-      <ColorGrid onCellClick={handleClick} complexity="simple" />
-    );
+    const { container } = render(<ColorGrid onCellClick={handleClick} />);
 
     const firstCell = container.querySelector('.grid > div');
     fireEvent.click(firstCell!);
 
     expect(handleClick).toHaveBeenCalledTimes(1);
-    // First cell in simple grid is hue=0, chroma=9 (starts from top = high chroma)
-    expect(handleClick).toHaveBeenCalledWith(0, 9);
+    // First cell is hue=0, chroma=CHROMA_LEVELS-1 (starts from top = high chroma)
+    expect(handleClick).toHaveBeenCalledWith(0, CHROMA_LEVELS - 1);
   });
 
   it('does not call onCellClick when disabled', () => {
@@ -61,7 +45,6 @@ describe('ColorGrid', () => {
         targetHue={5}
         targetSaturation={10}
         showTarget={true}
-        complexity="normal"
       />
     );
 
@@ -75,7 +58,6 @@ describe('ColorGrid', () => {
       <ColorGrid
         selectedHue={5}
         selectedSaturation={10}
-        complexity="normal"
       />
     );
 
@@ -104,7 +86,6 @@ describe('ColorGrid', () => {
         guesses={guesses}
         playerColorMap={playerColorMap}
         playerNameMap={playerNameMap}
-        complexity="normal"
       />
     );
 
@@ -132,12 +113,7 @@ describe('ColorGrid', () => {
       },
     ];
 
-    render(
-      <ColorGrid
-        guesses={guesses}
-        complexity="normal"
-      />
-    );
+    render(<ColorGrid guesses={guesses} />);
 
     // Should show "2" for overlapping guesses
     expect(screen.getByText('2')).toBeInTheDocument();
@@ -165,7 +141,6 @@ describe('ColorGrid', () => {
         playerColorMap={playerColorMap}
         playerNameMap={playerNameMap}
         highlightBestGuess={true}
-        complexity="normal"
       />
     );
 
@@ -175,16 +150,14 @@ describe('ColorGrid', () => {
   });
 
   it('applies cursor-pointer when clickable', () => {
-    const { container } = render(
-      <ColorGrid onCellClick={() => {}} complexity="simple" />
-    );
+    const { container } = render(<ColorGrid onCellClick={() => {}} />);
 
     const cell = container.querySelector('.grid > div');
     expect(cell).toHaveClass('cursor-pointer');
   });
 
   it('does not apply cursor-pointer when no click handler', () => {
-    const { container } = render(<ColorGrid complexity="simple" />);
+    const { container } = render(<ColorGrid />);
 
     const cell = container.querySelector('.grid > div');
     expect(cell).not.toHaveClass('cursor-pointer');

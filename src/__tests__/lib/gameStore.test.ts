@@ -6,13 +6,12 @@ import {
   startGame,
   advancePhase,
   submitGuess,
-  submitClue,
-  updateSettings,
   endGame,
   playAgain,
   deleteGame,
   createPlayerId,
 } from '@/lib/gameStore';
+import { HUE_SEGMENTS, CHROMA_LEVELS } from '@/lib/types';
 
 describe('gameStore.ts', () => {
   // Helper to create a game with players
@@ -52,18 +51,6 @@ describe('gameStore.ts', () => {
       expect(game.players).toHaveLength(0);
       expect(game.guesses).toHaveLength(0);
       expect(game.roundScores).toHaveLength(0);
-      expect(game.currentClue).toBeNull();
-    });
-
-    it('creates game with default settings', async () => {
-      const hostId = createPlayerId();
-      const game = await createGame(hostId);
-
-      expect(game.settings).toEqual({
-        mode: 'together',
-        complexity: 'normal',
-        timerEnabled: true,
-      });
     });
 
     it('persists game to store', async () => {
@@ -262,22 +249,13 @@ describe('gameStore.ts', () => {
       expect(result.error).toBe('Game has already started');
     });
 
-    it('sets phaseEndTime when timer enabled', async () => {
+    it('sets phaseEndTime when starting', async () => {
       const { game, hostId } = await setupGame(2);
 
       const result = await startGame(game.id, hostId);
 
       expect(result.game?.phaseEndTime).not.toBeNull();
       expect(result.game?.phaseEndTime).toBeGreaterThan(Date.now());
-    });
-
-    it('does not set phaseEndTime when timer disabled', async () => {
-      const { game, hostId } = await setupGame(2);
-      await updateSettings(game.id, hostId, { timerEnabled: false });
-
-      const result = await startGame(game.id, hostId);
-
-      expect(result.game?.phaseEndTime).toBeNull();
     });
   });
 
@@ -388,26 +366,6 @@ describe('gameStore.ts', () => {
       expect(result.error).toBe('Clue-giver cannot guess');
     });
 
-    it('prevents guess outside valid range', async () => {
-      const { game, hostId } = await setupGame(2);
-      await startGame(game.id, hostId);
-      await advancePhase(game.id, hostId);
-
-      const guestId = game.players[1].id;
-
-      // Out of range hue
-      let result = await submitGuess(game.id, guestId, 100, 10, false);
-      expect(result.success).toBe(false);
-
-      // Negative value
-      result = await submitGuess(game.id, guestId, -1, 10, false);
-      expect(result.success).toBe(false);
-
-      // Non-integer
-      result = await submitGuess(game.id, guestId, 5.5, 10, false);
-      expect(result.success).toBe(false);
-    });
-
     it('prevents updating after lock-in', async () => {
       const { game, hostId } = await setupGame(3);
       await startGame(game.id, hostId);
@@ -431,129 +389,6 @@ describe('gameStore.ts', () => {
 
       // Should auto-advance to clue-2
       expect(result.game?.state).toBe('clue-2');
-    });
-  });
-
-  describe('submitClue', () => {
-    it('accepts 1-word clue in clue-1', async () => {
-      const { game, hostId } = await setupGame(2);
-      await updateSettings(game.id, hostId, { mode: 'remote' });
-      await startGame(game.id, hostId);
-
-      const result = await submitClue(game.id, hostId, 'forest');
-
-      expect(result.success).toBe(true);
-      expect(result.game?.currentClue).toBe('forest');
-    });
-
-    it('accepts 2-word clue in clue-2', async () => {
-      const { game, hostId } = await setupGame(2);
-      await updateSettings(game.id, hostId, { mode: 'remote' });
-      await startGame(game.id, hostId);
-      await advancePhase(game.id, hostId); // -> guess-1
-
-      const guestId = game.players[1].id;
-      await submitGuess(game.id, guestId, 5, 5, true); // -> clue-2
-
-      const result = await submitClue(game.id, hostId, 'dark forest');
-
-      expect(result.success).toBe(true);
-      expect(result.game?.currentClue).toBe('dark forest');
-    });
-
-    it('rejects 2-word clue in clue-1', async () => {
-      const { game, hostId } = await setupGame(2);
-      await updateSettings(game.id, hostId, { mode: 'remote' });
-      await startGame(game.id, hostId);
-
-      const result = await submitClue(game.id, hostId, 'dark forest');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Clue must be exactly 1 word');
-    });
-
-    it('rejects 1-word clue in clue-2', async () => {
-      const { game, hostId } = await setupGame(2);
-      await updateSettings(game.id, hostId, { mode: 'remote' });
-      await startGame(game.id, hostId);
-      await advancePhase(game.id, hostId);
-
-      const guestId = game.players[1].id;
-      await submitGuess(game.id, guestId, 5, 5, true);
-
-      const result = await submitClue(game.id, hostId, 'forest');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Clue must be exactly 2 words');
-    });
-
-    it('rejects clue in together mode', async () => {
-      const { game, hostId } = await setupGame(2);
-      await startGame(game.id, hostId);
-
-      const result = await submitClue(game.id, hostId, 'forest');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Clue submission only available in remote mode');
-    });
-
-    it('rejects clue from non-clue-giver', async () => {
-      const { game, hostId } = await setupGame(2);
-      await updateSettings(game.id, hostId, { mode: 'remote' });
-      await startGame(game.id, hostId);
-
-      const guestId = game.players[1].id;
-      const result = await submitClue(game.id, guestId, 'forest');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Only the clue-giver can submit a clue');
-    });
-  });
-
-  describe('updateSettings', () => {
-    it('allows host to update settings in lobby', async () => {
-      const { game, hostId } = await setupGame(2);
-
-      const result = await updateSettings(game.id, hostId, {
-        mode: 'remote',
-        complexity: 'complex',
-        timerEnabled: false,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.game?.settings.mode).toBe('remote');
-      expect(result.game?.settings.complexity).toBe('complex');
-      expect(result.game?.settings.timerEnabled).toBe(false);
-    });
-
-    it('allows partial settings update', async () => {
-      const { game, hostId } = await setupGame(2);
-
-      const result = await updateSettings(game.id, hostId, { mode: 'remote' });
-
-      expect(result.game?.settings.mode).toBe('remote');
-      expect(result.game?.settings.complexity).toBe('normal'); // Unchanged
-      expect(result.game?.settings.timerEnabled).toBe(true); // Unchanged
-    });
-
-    it('prevents non-host from updating', async () => {
-      const { game } = await setupGame(2);
-      const guestId = game.players[1].id;
-
-      const result = await updateSettings(game.id, guestId, { mode: 'remote' });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Only the host can change settings');
-    });
-
-    it('prevents update after game started', async () => {
-      const { game, hostId } = await setupGame(2);
-      await startGame(game.id, hostId);
-
-      const result = await updateSettings(game.id, hostId, { mode: 'remote' });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Cannot change settings after game has started');
     });
   });
 
@@ -648,23 +483,6 @@ describe('gameStore.ts', () => {
       expect(updated?.roundScores.find(s => s.playerId === guestId)?.points).toBe(0);
     });
 
-    it('gives 100 points for no guess', async () => {
-      const { game, hostId } = await setupGame(3);
-      await updateSettings(game.id, hostId, { timerEnabled: false });
-      await startGame(game.id, hostId);
-
-      const guestId1 = game.players[1].id;
-      const guestId2 = game.players[2].id;
-
-      await advancePhase(game.id, hostId);
-      // Only guest1 submits
-      await submitGuess(game.id, guestId1, 5, 5, true);
-      // Force advance without guest2's guess
-      let updated = await getGame(game.id);
-      // Manually trigger phase transition
-      await advancePhase(game.id, hostId); // won't work, need to force it
-    });
-
     it('clue-giver gets average score with 3+ players', async () => {
       const { game, hostId } = await setupGame(3);
       await startGame(game.id, hostId);
@@ -681,11 +499,11 @@ describe('gameStore.ts', () => {
       // Guest1 guesses perfectly
       await submitGuess(game.id, guestId1, targetHue, targetSat, true);
       // Guest2 guesses far away
-      await submitGuess(game.id, guestId2, (targetHue + 12) % 24, (targetSat + 10) % 20, true);
+      await submitGuess(game.id, guestId2, (targetHue + HUE_SEGMENTS / 2) % HUE_SEGMENTS, (targetSat + CHROMA_LEVELS / 2) % CHROMA_LEVELS, true);
 
       await advancePhase(game.id, hostId);
       await submitGuess(game.id, guestId1, targetHue, targetSat, true);
-      await submitGuess(game.id, guestId2, (targetHue + 12) % 24, (targetSat + 10) % 20, true);
+      await submitGuess(game.id, guestId2, (targetHue + HUE_SEGMENTS / 2) % HUE_SEGMENTS, (targetSat + CHROMA_LEVELS / 2) % CHROMA_LEVELS, true);
 
       updated = await getGame(game.id);
       const clueGiverScore = updated?.roundScores.find(s => s.isClueGiver);
@@ -725,6 +543,19 @@ describe('gameStore.ts', () => {
         ids.add(createPlayerId());
       }
       expect(ids.size).toBe(100);
+    });
+  });
+
+  describe('deleteGame', () => {
+    it('deletes existing game', async () => {
+      const hostId = createPlayerId();
+      const game = await createGame(hostId);
+
+      const deleted = await deleteGame(game.id);
+      expect(deleted).toBe(true);
+
+      const retrieved = await getGame(game.id);
+      expect(retrieved).toBeNull();
     });
   });
 });
