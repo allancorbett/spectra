@@ -2,13 +2,18 @@
 
 import { use, useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { QRCodeSVG } from 'qrcode.react';
-import { clsx } from 'clsx';
-import ColorWheel from '@/components/ColorWheel';
-import ColorGrid from '@/components/ColorGrid';
 import { useGame, getPlayerId, setPlayerId } from '@/lib/useGame';
-import { indexToColor } from '@/lib/colors';
-import { PLAYER_COLORS, PHASE_DURATION, MIN_PLAYERS, GameMode, ColorComplexity, getGridDimensions } from '@/lib/types';
+import { PHASE_DURATION } from '@/lib/types';
+import {
+  JoinView,
+  LobbyView,
+  ClueGiverView,
+  WaitingForClueView,
+  GuessingView,
+  RevealView,
+  LeaderboardView,
+  FinishedView,
+} from '@/components/game';
 
 interface GamePageProps {
   params: Promise<{ gameId: string }>;
@@ -24,7 +29,6 @@ export default function GamePage({ params }: GamePageProps) {
     error,
     isHost,
     isClueGiver,
-    currentPlayer,
     joinGame,
     leaveGame,
     startGame,
@@ -34,18 +38,11 @@ export default function GamePage({ params }: GamePageProps) {
     updateSettings,
     endGame,
     playAgain,
-    loadGame,
   } = useGame(gameId);
 
-  const [name, setName] = useState('');
-  const [joinError, setJoinError] = useState<string | null>(null);
-  const [isJoining, setIsJoining] = useState(false);
   const [selectedHue, setSelectedHue] = useState<number | null>(null);
   const [selectedSat, setSelectedSat] = useState<number | null>(null);
   const [hasLockedIn, setHasLockedIn] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [clueInput, setClueInput] = useState('');
-  const [clueError, setClueError] = useState<string | null>(null);
 
   // Initialize player ID
   useEffect(() => {
@@ -60,11 +57,6 @@ export default function GamePage({ params }: GamePageProps) {
       setSelectedHue(null);
       setSelectedSat(null);
       setHasLockedIn(false);
-    }
-    // Reset clue input on clue phase change
-    if (game?.state === 'clue-1' || game?.state === 'clue-2') {
-      setClueInput('');
-      setClueError(null);
     }
   }, [game?.state]);
 
@@ -118,27 +110,11 @@ export default function GamePage({ params }: GamePageProps) {
     return game.guesses.filter((g) => g.roundNumber === game.roundNumber);
   }, [game]);
 
-  // Handle joining
-  const handleJoin = async () => {
-    if (!name.trim()) {
-      setJoinError('Please enter your name');
-      return;
-    }
-    setIsJoining(true);
-    setJoinError(null);
-    const result = await joinGame(gameId, name.trim());
-    if (!result.success) {
-      setJoinError(result.error || 'Failed to join');
-    }
-    setIsJoining(false);
-  };
-
   // Handle cell click
   const handleCellClick = async (hue: number, saturation: number) => {
     if (hasLockedIn || isClueGiver) return;
     setSelectedHue(hue);
     setSelectedSat(saturation);
-    // Submit guess without locking in
     await submitGuess(hue, saturation, false);
   };
 
@@ -149,27 +125,10 @@ export default function GamePage({ params }: GamePageProps) {
     setHasLockedIn(true);
   };
 
-  // Handle clue submission
-  const handleSubmitClue = async () => {
-    if (!clueInput.trim()) return;
-    setClueError(null);
-    const result = await submitClue(clueInput.trim());
-    if (!result.success && result.error) {
-      setClueError(result.error);
-    }
-  };
-
-  // Grid dimensions for complexity
-  const gridDims = useMemo(() => {
-    return game ? getGridDimensions(game.settings.complexity) : getGridDimensions('normal');
-  }, [game?.settings?.complexity]);
-
-  // Copy game URL
-  const copyGameUrl = () => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/${gameId}` : '';
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  // Handle leave
+  const handleLeave = () => {
+    leaveGame();
+    router.push('/');
   };
 
   // Loading state
@@ -198,7 +157,6 @@ export default function GamePage({ params }: GamePageProps) {
     );
   }
 
-  // Check if user is a player
   const isPlayer = game.players.some((p) => p.id === playerId);
 
   // Game in progress but user is not a player
@@ -221,678 +179,153 @@ export default function GamePage({ params }: GamePageProps) {
   // Join page (lobby state, not a player yet)
   if (game.state === 'lobby' && !isPlayer) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">Join Game</h1>
-          <p className="text-foreground/60">Game Code: <span className="font-mono text-primary">{gameId}</span></p>
-        </div>
-
-        <div className="card w-full max-w-sm">
-          <input
-            type="text"
-            placeholder="Your Name"
-            value={name}
-            onChange={(e) => setName(e.target.value.slice(0, 16))}
-            onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-            className="input mb-4"
-            maxLength={16}
-            autoFocus
-          />
-          <button
-            onClick={handleJoin}
-            disabled={isJoining || !name.trim()}
-            className="btn btn-primary w-full"
-          >
-            {isJoining ? 'Joining...' : 'Join Game'}
-          </button>
-          {joinError && <p className="text-error text-sm mt-2 text-center">{joinError}</p>}
-        </div>
-
-        <p className="text-foreground/40 text-sm">{game.players.length} player(s) waiting</p>
-      </div>
+      <JoinView
+        gameId={gameId}
+        playerCount={game.players.length}
+        onJoin={(name) => joinGame(gameId, name)}
+      />
     );
   }
 
-  // Lobby views
+  // Lobby view
   if (game.state === 'lobby') {
-    const gameUrl = typeof window !== 'undefined' ? `${window.location.origin}/${gameId}` : '';
-
     return (
-      <div className="flex-1 flex flex-col p-6 gap-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-1">Game Lobby</h1>
-          <p className="text-foreground/60">{game.players.length}/24 players</p>
-        </div>
-
-        {/* Share section (host only shows prominently) */}
-        {isHost && (
-          <div className="card text-center">
-            <p className="text-sm text-foreground/60 mb-2">Share this code to invite players</p>
-            <div
-              className="bg-secondary rounded-xl p-4 mb-4 cursor-pointer hover:bg-secondary/80 transition-colors"
-              onClick={copyGameUrl}
-            >
-              <p className="text-3xl font-mono font-bold tracking-widest text-primary">{gameId}</p>
-              <p className="text-xs text-foreground/40 mt-1">{copied ? 'Copied!' : 'Tap to copy link'}</p>
-            </div>
-            <div className="flex justify-center">
-              <QRCodeSVG value={gameUrl} size={150} bgColor="transparent" fgColor="#f0f0f5" />
-            </div>
-          </div>
-        )}
-
-        {/* Game Settings (host only) */}
-        {isHost && (
-          <div className="card">
-            <h2 className="font-semibold mb-3">Game Settings</h2>
-
-            {/* Mode Selection */}
-            <div className="mb-4">
-              <label className="text-sm text-foreground/60 block mb-2">Play Mode</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => updateSettings({ mode: 'together' })}
-                  className={clsx(
-                    'p-3 rounded-lg text-sm font-medium transition-colors',
-                    game.settings.mode === 'together'
-                      ? 'bg-primary text-white'
-                      : 'bg-secondary hover:bg-secondary/80'
-                  )}
-                >
-                  Together
-                  <span className="block text-xs opacity-70">Same room</span>
-                </button>
-                <button
-                  onClick={() => updateSettings({ mode: 'remote' })}
-                  className={clsx(
-                    'p-3 rounded-lg text-sm font-medium transition-colors',
-                    game.settings.mode === 'remote'
-                      ? 'bg-primary text-white'
-                      : 'bg-secondary hover:bg-secondary/80'
-                  )}
-                >
-                  Remote
-                  <span className="block text-xs opacity-70">Type clues</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Complexity Selection */}
-            <div className="mb-4">
-              <label className="text-sm text-foreground/60 block mb-2">Color Complexity</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['simple', 'normal', 'complex'] as const).map((level) => {
-                  const dims = getGridDimensions(level);
-                  return (
-                    <button
-                      key={level}
-                      onClick={() => updateSettings({ complexity: level })}
-                      className={clsx(
-                        'p-2 rounded-lg text-sm font-medium transition-colors',
-                        game.settings.complexity === level
-                          ? 'bg-primary text-white'
-                          : 'bg-secondary hover:bg-secondary/80'
-                      )}
-                    >
-                      {level.charAt(0).toUpperCase() + level.slice(1)}
-                      <span className="block text-xs opacity-70">{dims.hue * dims.chroma}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Timer Toggle */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground/60">30s Timer</span>
-              <button
-                onClick={() => updateSettings({ timerEnabled: !game.settings.timerEnabled })}
-                className={clsx(
-                  'relative w-12 h-6 rounded-full transition-colors',
-                  game.settings.timerEnabled ? 'bg-primary' : 'bg-secondary'
-                )}
-              >
-                <div
-                  className={clsx(
-                    'absolute top-1 w-4 h-4 rounded-full bg-white transition-transform',
-                    game.settings.timerEnabled ? 'translate-x-7' : 'translate-x-1'
-                  )}
-                />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Settings display for non-hosts */}
-        {!isHost && (
-          <div className="card">
-            <h2 className="font-semibold mb-2">Game Settings</h2>
-            <div className="text-sm text-foreground/60 space-y-1">
-              <p>Mode: <span className="text-foreground">{game.settings.mode === 'together' ? 'Together (same room)' : 'Remote (typed clues)'}</span></p>
-              <p>Colors: <span className="text-foreground">{game.settings.complexity} ({gridDims.hue * gridDims.chroma})</span></p>
-              <p>Timer: <span className="text-foreground">{game.settings.timerEnabled ? '30 seconds' : 'Off'}</span></p>
-            </div>
-          </div>
-        )}
-
-        {/* Player list */}
-        <div className="card flex-1">
-          <h2 className="font-semibold mb-3">Players</h2>
-          <div className="space-y-2">
-            {game.players.map((player) => (
-              <div
-                key={player.id}
-                className={clsx(
-                  'flex items-center gap-3 p-3 rounded-lg',
-                  player.id === playerId ? 'bg-primary/20' : 'bg-secondary'
-                )}
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                  style={{ backgroundColor: PLAYER_COLORS[player.colorIndex] }}
-                >
-                  {player.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="flex-1 font-medium">{player.name}</span>
-                {player.id === game.hostId && (
-                  <span className="text-xs bg-primary/30 text-primary px-2 py-1 rounded">Host</span>
-                )}
-                {player.id === playerId && (
-                  <span className="text-xs text-foreground/40">You</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-3">
-          {isHost ? (
-            <>
-              <button
-                onClick={() => startGame()}
-                disabled={game.players.length < MIN_PLAYERS}
-                className="btn btn-success w-full"
-              >
-                {game.players.length < MIN_PLAYERS
-                  ? `Need ${MIN_PLAYERS - game.players.length} more player(s)`
-                  : 'Start Game'}
-              </button>
-              <button onClick={() => { leaveGame(); router.push('/'); }} className="btn btn-secondary w-full">
-                Cancel Game
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="text-center text-foreground/60">Waiting for host to start the game...</p>
-              <button onClick={() => { leaveGame(); router.push('/'); }} className="btn btn-secondary w-full">
-                Leave Game
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <LobbyView
+        gameId={gameId}
+        players={game.players}
+        settings={game.settings}
+        currentPlayerId={playerId}
+        hostId={game.hostId}
+        isHost={isHost}
+        onStart={startGame}
+        onLeave={handleLeave}
+        onUpdateSettings={updateSettings}
+      />
     );
   }
 
-  // Get locked in count for current phase
+  // Calculate common values for game views
   const guessNumber = game.state === 'guess-1' ? 1 : game.state === 'guess-2' ? 2 : null;
   const lockedInCount = guessNumber
     ? currentGuesses.filter((g) => g.guessNumber === guessNumber && g.lockedIn).length
     : 0;
   const guesserCount = game.players.filter((p) => p.id !== game.clueGiverId).length;
-
-  // Timer bar percentage (only when timer is enabled)
-  const timerEnabled = game?.settings?.timerEnabled ?? true;
+  const timerEnabled = game.settings.timerEnabled;
   const timerPercent = timerEnabled && timeLeft !== null ? (timeLeft / (PHASE_DURATION / 1000)) * 100 : 100;
+  const clueGiver = game.players.find((p) => p.id === game.clueGiverId);
 
   // Clue-giver view
   if (isClueGiver) {
     return (
-      <div className="flex-1 flex flex-col p-4 gap-4">
-        {/* Header */}
-        <div className="text-center">
-          <p className="text-sm text-foreground/60">Round {game.roundNumber}</p>
-          <h2 className="text-xl font-bold">
-            {game.state === 'clue-1' && 'Give ONE Word Clue'}
-            {game.state === 'clue-2' && 'Give TWO Word Clue'}
-            {game.state === 'guess-1' && 'Players Guessing...'}
-            {game.state === 'guess-2' && 'Players Guessing...'}
-            {game.state === 'reveal' && 'Round Results'}
-            {game.state === 'leaderboard' && 'Leaderboard'}
-          </h2>
-        </div>
-
-        {/* Timer */}
-        {timerEnabled && timeLeft !== null && (
-          <div className="timer-bar">
-            <div className="timer-bar-fill" style={{ width: `${timerPercent}%` }} />
-          </div>
-        )}
-
-        {/* Target color swatch */}
-        {game.targetHue !== null && game.targetSaturation !== null && game.state !== 'leaderboard' && (
-          <div className="flex justify-center">
-            <div
-              className="w-32 h-32 rounded-2xl shadow-lg animate-pulse-glow"
-              style={{ backgroundColor: indexToColor(game.targetHue, game.targetSaturation, gridDims.hue, gridDims.chroma) }}
-            />
-          </div>
-        )}
-
-        {/* Clue input for remote mode */}
-        {game.settings.mode === 'remote' && (game.state === 'clue-1' || game.state === 'clue-2') && (
-          <div className="card">
-            <label className="text-sm text-foreground/60 block mb-2">
-              Type your {game.state === 'clue-1' ? 'ONE word' : 'TWO word'} clue:
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={clueInput}
-                onChange={(e) => setClueInput(e.target.value)}
-                placeholder={game.state === 'clue-1' ? 'e.g., forest' : 'e.g., ocean sunset'}
-                className="input flex-1"
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmitClue()}
-              />
-              <button
-                onClick={handleSubmitClue}
-                disabled={!clueInput.trim()}
-                className="btn btn-primary px-4"
-              >
-                Send
-              </button>
-            </div>
-            {clueError && <p className="text-error text-sm mt-2">{clueError}</p>}
-            {game.currentClue && (
-              <p className="text-success text-sm mt-2">Current clue: &quot;{game.currentClue}&quot;</p>
-            )}
-          </div>
-        )}
-
-        {/* Color wheel - only show during reveal */}
-        {game.state === 'reveal' && (
-          <div className="flex justify-center">
-            <ColorWheel
-              size={320}
-              targetHue={game.targetHue}
-              targetSaturation={game.targetSaturation}
-              showTarget={true}
-              guesses={currentGuesses}
-              playerColorMap={playerColorMap}
-              playerNameMap={playerNameMap}
-              highlightBestGuess={true}
-              disabled={true}
-              complexity={game.settings.complexity}
-            />
-          </div>
-        )}
-
-        {/* Status / Scores */}
-        {(game.state === 'guess-1' || game.state === 'guess-2') && (
-          <div className="text-center">
-            <p className="text-foreground/60">{lockedInCount}/{guesserCount} players locked in</p>
-            {timerEnabled && timeLeft !== null && <p className="text-2xl font-bold">{timeLeft}s</p>}
-          </div>
-        )}
-
-        {game.state === 'reveal' && (
-          <div className="card">
-            <h3 className="font-semibold mb-2">Round Scores</h3>
-            <div className="space-y-2">
-              {game.roundScores.map((score, i) => {
-                const player = game.players.find((p) => p.id === score.playerId);
-                return (
-                  <div
-                    key={score.playerId}
-                    className={clsx(
-                      'flex items-center gap-3 p-2 rounded-lg',
-                      i === 0 ? 'bg-success/20' : 'bg-secondary'
-                    )}
-                  >
-                    <span className="w-6 text-center font-bold">{i + 1}</span>
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                      style={{ backgroundColor: PLAYER_COLORS[player?.colorIndex ?? 0] }}
-                    >
-                      {player?.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="flex-1">{player?.name}</span>
-                    <span className="font-mono">{score.points} pts</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {game.state === 'leaderboard' && (
-          <div className="card flex-1">
-            <h3 className="font-semibold mb-2">Total Scores</h3>
-            <div className="space-y-2">
-              {[...game.players]
-                .sort((a, b) => a.totalScore - b.totalScore)
-                .map((player, i) => (
-                  <div
-                    key={player.id}
-                    className={clsx(
-                      'flex items-center gap-3 p-2 rounded-lg',
-                      i === 0 ? 'bg-success/20' : 'bg-secondary'
-                    )}
-                  >
-                    <span className="w-6 text-center font-bold">{i + 1}</span>
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                      style={{ backgroundColor: PLAYER_COLORS[player.colorIndex] }}
-                    >
-                      {player.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="flex-1">{player.name}</span>
-                    <span className="font-mono">{player.totalScore} pts</span>
-                    {player.id === game.clueGiverId && (
-                      <span className="text-xs bg-primary/30 text-primary px-2 py-1 rounded">Next</span>
-                    )}
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="space-y-2">
-          {(game.state === 'clue-1' || game.state === 'clue-2') && (
-            <button onClick={() => advancePhase()} className="btn btn-primary w-full">
-              Clue Given
-            </button>
-          )}
-          {game.state === 'reveal' && (
-            <button onClick={() => advancePhase()} className="btn btn-primary w-full">
-              Show Leaderboard
-            </button>
-          )}
-          {game.state === 'leaderboard' && (
-            <>
-              <button onClick={() => advancePhase()} className="btn btn-success w-full">
-                Start Next Round
-              </button>
-              <button onClick={() => endGame()} className="btn btn-error w-full">
-                End Game
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <ClueGiverView
+        state={game.state}
+        roundNumber={game.roundNumber}
+        targetHue={game.targetHue}
+        targetSaturation={game.targetSaturation}
+        complexity={game.settings.complexity}
+        mode={game.settings.mode}
+        currentClue={game.currentClue}
+        guesses={currentGuesses}
+        players={game.players}
+        roundScores={game.roundScores}
+        clueGiverId={game.clueGiverId!}
+        playerColorMap={playerColorMap}
+        playerNameMap={playerNameMap}
+        lockedInCount={lockedInCount}
+        guesserCount={guesserCount}
+        timerEnabled={timerEnabled}
+        timerPercent={timerPercent}
+        timeLeft={timeLeft}
+        onAdvancePhase={advancePhase}
+        onSubmitClue={submitClue}
+        onEndGame={endGame}
+      />
     );
   }
 
-  // Guesser view
+  // Guesser waiting for clue
   if (game.state === 'clue-1' || game.state === 'clue-2') {
-    const clueGiver = game.players.find((p) => p.id === game.clueGiverId);
-
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
-        <div className="text-center">
-          <p className="text-sm text-foreground/60">Round {game.roundNumber}</p>
-          {game.settings.mode === 'remote' ? (
-            <>
-              <h2 className="text-2xl font-bold mb-4">
-                {game.currentClue ? 'The clue is:' : `Waiting for ${clueGiver?.name}'s clue...`}
-              </h2>
-              {game.currentClue && (
-                <p className="text-3xl font-bold text-primary animate-pulse">
-                  &quot;{game.currentClue}&quot;
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <h2 className="text-2xl font-bold mb-4">Listen for the clue!</h2>
-              <p className="text-foreground/60">
-                {game.state === 'clue-1' ? 'ONE word' : 'TWO words'}
-              </p>
-            </>
-          )}
-        </div>
-        <div className="animate-pulse">
-          <ColorWheel size={200} disabled />
-        </div>
-        {timerEnabled && timeLeft !== null && (
-          <p className="text-3xl font-bold">{timeLeft}s</p>
-        )}
-      </div>
+      <WaitingForClueView
+        roundNumber={game.roundNumber}
+        cluePhase={game.state === 'clue-1' ? 1 : 2}
+        mode={game.settings.mode}
+        clueGiverName={clueGiver?.name ?? 'Unknown'}
+        currentClue={game.currentClue}
+        timerEnabled={timerEnabled}
+        timeLeft={timeLeft}
+      />
     );
   }
 
+  // Guesser guessing
   if (game.state === 'guess-1' || game.state === 'guess-2') {
-    // Show first guess marker during guess-2
     const firstGuess = game.state === 'guess-2'
       ? currentGuesses.find((g) => g.playerId === playerId && g.guessNumber === 1)
       : null;
     const displayGuesses = firstGuess ? [firstGuess] : [];
 
     return (
-      <div className="flex-1 flex flex-col p-4 gap-4">
-        <div className="text-center">
-          <p className="text-sm text-foreground/60">Round {game.roundNumber}</p>
-          <h2 className="text-xl font-bold">
-            {hasLockedIn ? 'Waiting for others...' : `Place your ${game.state === 'guess-1' ? 'first' : 'second'} guess`}
-          </h2>
-        </div>
-
-        {/* Timer */}
-        {timerEnabled && timeLeft !== null && (
-          <div className="timer-bar">
-            <div className="timer-bar-fill" style={{ width: `${timerPercent}%` }} />
-          </div>
-        )}
-
-        <ColorGrid
-          selectedHue={selectedHue}
-          selectedSaturation={selectedSat}
-          guesses={displayGuesses}
-          playerColorMap={playerColorMap}
-          playerNameMap={playerNameMap}
-          onCellClick={handleCellClick}
-          disabled={hasLockedIn}
-          complexity={game.settings.complexity}
-        />
-
-        {/* Selected color preview */}
-        {selectedHue !== null && selectedSat !== null && !hasLockedIn && (
-          <div className="flex justify-center">
-            <div
-              className="w-16 h-16 rounded-xl shadow-lg"
-              style={{ backgroundColor: indexToColor(selectedHue, selectedSat, gridDims.hue, gridDims.chroma) }}
-            />
-          </div>
-        )}
-
-        <div className="space-y-2">
-          {!hasLockedIn && (
-            <button
-              onClick={handleLockIn}
-              disabled={selectedHue === null || selectedSat === null}
-              className="btn btn-success w-full"
-            >
-              Lock In
-            </button>
-          )}
-          {timerEnabled && timeLeft !== null && (
-            <p className="text-center text-2xl font-bold">{timeLeft}s</p>
-          )}
-          <p className="text-center text-foreground/60 text-sm">
-            {lockedInCount}/{guesserCount} players locked in
-          </p>
-        </div>
-      </div>
+      <GuessingView
+        roundNumber={game.roundNumber}
+        guessNumber={game.state === 'guess-1' ? 1 : 2}
+        complexity={game.settings.complexity}
+        selectedHue={selectedHue}
+        selectedSaturation={selectedSat}
+        hasLockedIn={hasLockedIn}
+        displayGuesses={displayGuesses}
+        playerColorMap={playerColorMap}
+        playerNameMap={playerNameMap}
+        lockedInCount={lockedInCount}
+        guesserCount={guesserCount}
+        timerEnabled={timerEnabled}
+        timerPercent={timerPercent}
+        timeLeft={timeLeft}
+        onCellClick={handleCellClick}
+        onLockIn={handleLockIn}
+      />
     );
   }
 
-  // Reveal view (for guessers)
+  // Reveal view
   if (game.state === 'reveal') {
     return (
-      <div className="flex-1 flex flex-col p-4 gap-4">
-        <div className="text-center">
-          <p className="text-sm text-foreground/60">Round {game.roundNumber}</p>
-          <h2 className="text-xl font-bold">Results</h2>
-        </div>
-
-        {/* Target swatch */}
-        {game.targetHue !== null && game.targetSaturation !== null && (
-          <div className="flex justify-center">
-            <div
-              className="w-20 h-20 rounded-2xl shadow-lg"
-              style={{ backgroundColor: indexToColor(game.targetHue, game.targetSaturation, gridDims.hue, gridDims.chroma) }}
-            />
-          </div>
-        )}
-
-        <div className="flex justify-center">
-          <ColorWheel
-            size={320}
-            targetHue={game.targetHue}
-            targetSaturation={game.targetSaturation}
-            showTarget={true}
-            guesses={currentGuesses}
-            playerColorMap={playerColorMap}
-            playerNameMap={playerNameMap}
-            highlightBestGuess={true}
-            disabled={true}
-            complexity={game.settings.complexity}
-          />
-        </div>
-
-        <div className="card">
-          <h3 className="font-semibold mb-2">Round Scores</h3>
-          <div className="space-y-2">
-            {game.roundScores.map((score, i) => {
-              const player = game.players.find((p) => p.id === score.playerId);
-              const isYou = score.playerId === playerId;
-              return (
-                <div
-                  key={score.playerId}
-                  className={clsx(
-                    'flex items-center gap-3 p-2 rounded-lg',
-                    i === 0 ? 'bg-success/20' : isYou ? 'bg-primary/20' : 'bg-secondary'
-                  )}
-                >
-                  <span className="w-6 text-center font-bold">{i + 1}</span>
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                    style={{ backgroundColor: PLAYER_COLORS[player?.colorIndex ?? 0] }}
-                  >
-                    {player?.name.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="flex-1">{player?.name}{isYou && ' (You)'}</span>
-                  <span className="font-mono">{score.points} pts</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <p className="text-center text-foreground/60">Waiting for next round...</p>
-      </div>
+      <RevealView
+        roundNumber={game.roundNumber}
+        targetHue={game.targetHue}
+        targetSaturation={game.targetSaturation}
+        complexity={game.settings.complexity}
+        guesses={currentGuesses}
+        players={game.players}
+        roundScores={game.roundScores}
+        currentPlayerId={playerId}
+        playerColorMap={playerColorMap}
+        playerNameMap={playerNameMap}
+      />
     );
   }
 
-  // Leaderboard view (for guessers)
+  // Leaderboard view
   if (game.state === 'leaderboard') {
-    const clueGiver = game.players.find((p) => p.id === game.clueGiverId);
     return (
-      <div className="flex-1 flex flex-col p-4 gap-4">
-        <div className="text-center">
-          <h2 className="text-xl font-bold">Leaderboard</h2>
-          <p className="text-foreground/60">After Round {game.roundNumber}</p>
-        </div>
-
-        <div className="card flex-1">
-          <div className="space-y-2">
-            {[...game.players]
-              .sort((a, b) => a.totalScore - b.totalScore)
-              .map((player, i) => {
-                const isYou = player.id === playerId;
-                return (
-                  <div
-                    key={player.id}
-                    className={clsx(
-                      'flex items-center gap-3 p-3 rounded-lg',
-                      i === 0 ? 'bg-success/20' : isYou ? 'bg-primary/20' : 'bg-secondary'
-                    )}
-                  >
-                    <span className="w-8 text-center font-bold text-xl">{i + 1}</span>
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
-                      style={{ backgroundColor: PLAYER_COLORS[player.colorIndex] }}
-                    >
-                      {player.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="flex-1 font-medium">{player.name}{isYou && ' (You)'}</span>
-                    <span className="font-mono text-lg">{player.totalScore}</span>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-
-        <p className="text-center text-foreground/60">
-          {clueGiver?.name} is giving clues next...
-        </p>
-      </div>
+      <LeaderboardView
+        roundNumber={game.roundNumber}
+        players={game.players}
+        currentPlayerId={playerId}
+        nextClueGiverName={clueGiver?.name ?? 'Unknown'}
+      />
     );
   }
 
   // Finished view
   if (game.state === 'finished') {
-    const sortedPlayers = [...game.players].sort((a, b) => a.totalScore - b.totalScore);
-    const winner = sortedPlayers[0];
-
     return (
-      <div className="flex-1 flex flex-col p-4 gap-4">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold mb-2">Game Over!</h2>
-          <p className="text-xl text-primary">{winner?.name} wins!</p>
-        </div>
-
-        <div className="card flex-1">
-          <h3 className="font-semibold mb-3 text-center">Final Standings</h3>
-          <div className="space-y-2">
-            {sortedPlayers.map((player, i) => {
-              const isYou = player.id === playerId;
-              return (
-                <div
-                  key={player.id}
-                  className={clsx(
-                    'flex items-center gap-3 p-3 rounded-lg',
-                    i === 0 ? 'bg-success/20' : isYou ? 'bg-primary/20' : 'bg-secondary'
-                  )}
-                >
-                  <span className="w-8 text-center font-bold text-xl">
-                    {i === 0 ? '🏆' : i + 1}
-                  </span>
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
-                    style={{ backgroundColor: PLAYER_COLORS[player.colorIndex] }}
-                  >
-                    {player.name.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="flex-1 font-medium">{player.name}{isYou && ' (You)'}</span>
-                  <span className="font-mono text-lg">{player.totalScore}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <button onClick={() => playAgain()} className="btn btn-success w-full">
-            Play Again
-          </button>
-          <button onClick={() => router.push('/')} className="btn btn-secondary w-full">
-            New Game
-          </button>
-        </div>
-      </div>
+      <FinishedView
+        players={game.players}
+        currentPlayerId={playerId}
+        onPlayAgain={playAgain}
+        onNewGame={() => router.push('/')}
+      />
     );
   }
 
