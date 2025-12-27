@@ -139,9 +139,21 @@ export default function Home() {
 
             <div>
               <h3 className="font-semibold text-foreground mb-1">Scoring</h3>
+              <p className="text-sm mb-2">
+                <strong>Guessers:</strong> Points are based on distance from the target (0-100).
+                Your better guess of the two counts. Lower is better!
+              </p>
               <p className="text-sm">
-                Points are based on distance from the target (0-100). Your better guess counts.
-                The player with the lowest total score after all rounds wins!
+                <strong>Clue-giver:</strong> Gets the average score of all guessers. Give good clues
+                to help everyone score low!
+              </p>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-foreground mb-1">Taking Turns</h3>
+              <p className="text-sm">
+                Everyone takes a turn as clue-giver! The role rotates through all players in the
+                order they joined. After all rounds, the player with the lowest total score wins!
               </p>
             </div>
 

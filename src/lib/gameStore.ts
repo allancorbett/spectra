@@ -404,8 +404,9 @@ export async function submitGuess(
 function calculateRoundScores(game: Game) {
   if (game.targetHue === null || game.targetSaturation === null) return;
 
-  const scores: { playerId: string; distance: number; points: number }[] = [];
+  const scores: { playerId: string; distance: number; points: number; isClueGiver?: boolean }[] = [];
   const guessers = game.players.filter((p) => p.id !== game.clueGiverId);
+  const clueGiver = game.players.find((p) => p.id === game.clueGiverId);
 
   for (const player of guessers) {
     const playerGuesses = game.guesses.filter(
@@ -436,6 +437,19 @@ function calculateRoundScores(game: Game) {
 
     scores.push({ playerId: player.id, distance: bestDistance, points: bestDistance });
     player.totalScore += bestDistance;
+  }
+
+  // Calculate clue-giver's score as the average of all guesser scores
+  if (clueGiver && scores.length > 0) {
+    const totalPoints = scores.reduce((sum, s) => sum + s.points, 0);
+    const averagePoints = Math.round(totalPoints / scores.length);
+    scores.push({
+      playerId: clueGiver.id,
+      distance: averagePoints,
+      points: averagePoints,
+      isClueGiver: true
+    });
+    clueGiver.totalScore += averagePoints;
   }
 
   // Sort by distance (lowest first)

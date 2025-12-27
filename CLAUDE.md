@@ -101,10 +101,12 @@ Without `REDIS_URL` configured, the game automatically uses an in-memory store w
 ## Game Rules
 
 - 2-24 players
-- Scoring: 0-100 points per round (lower is better)
-- Best of two guesses counts
+- **Guesser scoring**: 0-100 points per round based on distance (lower is better)
+- Best of two guesses counts for guessers
+- **Clue-giver scoring**: Gets the average score of all guessers
+- Clue-giver rotates sequentially through all players (by join order)
 - No color names allowed in clues (honor system)
-- Clue-giver rotates to lowest scorer each round
+- Lowest total score after all rounds wins
 
 ## API Endpoints
 
