@@ -2,7 +2,8 @@ import '@testing-library/jest-dom';
 
 // Mock crypto.randomUUID for tests
 if (typeof crypto === 'undefined') {
-  global.crypto = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (global as any).crypto = {
     randomUUID: () => 'test-uuid-' + Math.random().toString(36).substr(2, 9),
   };
 }
