@@ -20,13 +20,28 @@ Spectra is a browser-based multiplayer party game where one player describes a c
 src/
 ├── app/
 │   ├── api/game/route.ts    # Game API endpoint
-│   ├── [gameId]/page.tsx    # Dynamic game page (all game views)
+│   ├── [gameId]/page.tsx    # Dynamic game page (view orchestration)
 │   ├── layout.tsx           # Root layout
 │   ├── page.tsx             # Home page
 │   └── globals.css          # Global styles
 ├── components/
+│   ├── game/                # Game view components
+│   │   ├── ClueGiverView.tsx
+│   │   ├── FinishedView.tsx
+│   │   ├── GameSettings.tsx
+│   │   ├── GuessingView.tsx
+│   │   ├── JoinView.tsx
+│   │   ├── LeaderboardView.tsx
+│   │   ├── LobbyView.tsx
+│   │   ├── RevealView.tsx
+│   │   ├── WaitingForClueView.tsx
+│   │   └── index.ts
 │   ├── ColorGrid.tsx        # Rectangular grid for guessing
-│   └── ColorWheel.tsx       # Polar wheel for reveal screens
+│   ├── ColorWheel.tsx       # Polar wheel for reveal screens
+│   ├── PlayerAvatar.tsx     # Player avatar with initial
+│   ├── PlayerList.tsx       # Player list for lobby
+│   ├── ScoreList.tsx        # Reusable score display
+│   └── TimerBar.tsx         # Timer progress bar
 └── lib/
     ├── types.ts             # TypeScript types and constants
     ├── colors.ts            # Color utilities and scoring
