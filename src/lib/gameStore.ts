@@ -1,10 +1,9 @@
-import { kv } from '@vercel/kv';
+import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Game,
   GameState,
   Player,
-  Guess,
   PLAYER_COLORS,
   PHASE_DURATION,
   MIN_PLAYERS,
@@ -16,37 +15,73 @@ import { calculateDistance, generateGameCode, getRandomTarget } from './colors';
 // Game TTL: 24 hours in seconds
 const GAME_TTL_SECONDS = 24 * 60 * 60;
 
-// Check if KV is configured
-const isKvConfigured = () => {
-  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
-};
+// Redis client singleton
+let redis: Redis | null = null;
+
+function getRedis(): Redis | null {
+  if (redis) return redis;
+
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) return null;
+
+  try {
+    redis = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+    });
+    return redis;
+  } catch {
+    console.error('Failed to connect to Redis');
+    return null;
+  }
+}
 
 // In-memory fallback for local development
 const memoryStore: Map<string, Game> = new Map();
 
-// Key prefix for games in KV
+// Key prefix for games
 const gameKey = (gameId: string) => `game:${gameId.toUpperCase()}`;
 
 // Storage abstraction
 async function getGameFromStore(gameId: string): Promise<Game | null> {
-  if (isKvConfigured()) {
-    return await kv.get<Game>(gameKey(gameId));
+  const client = getRedis();
+  if (client) {
+    try {
+      const data = await client.get(gameKey(gameId));
+      if (data) {
+        return JSON.parse(data) as Game;
+      }
+      return null;
+    } catch (err) {
+      console.error('Redis get error:', err);
+      return memoryStore.get(gameId.toUpperCase()) || null;
+    }
   }
   return memoryStore.get(gameId.toUpperCase()) || null;
 }
 
 async function setGameInStore(game: Game): Promise<void> {
-  if (isKvConfigured()) {
-    await kv.set(gameKey(game.id), game, { ex: GAME_TTL_SECONDS });
-  } else {
-    memoryStore.set(game.id.toUpperCase(), game);
+  const client = getRedis();
+  if (client) {
+    try {
+      await client.setex(gameKey(game.id), GAME_TTL_SECONDS, JSON.stringify(game));
+      return;
+    } catch (err) {
+      console.error('Redis set error:', err);
+    }
   }
+  memoryStore.set(game.id.toUpperCase(), game);
 }
 
 async function deleteGameFromStore(gameId: string): Promise<boolean> {
-  if (isKvConfigured()) {
-    await kv.del(gameKey(gameId));
-    return true;
+  const client = getRedis();
+  if (client) {
+    try {
+      await client.del(gameKey(gameId));
+      return true;
+    } catch (err) {
+      console.error('Redis del error:', err);
+    }
   }
   return memoryStore.delete(gameId.toUpperCase());
 }

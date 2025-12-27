@@ -10,7 +10,7 @@ Spectra is a browser-based multiplayer party game where one player describes a c
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS 4
 - **Real-time**: Polling-based updates (1 second interval)
-- **State**: Vercel KV (Redis) with in-memory fallback for local dev
+- **State**: Redis (via ioredis) with in-memory fallback for local dev
 - **QR Codes**: qrcode.react for game sharing
 
 ## Project Structure
@@ -28,7 +28,7 @@ src/
 └── lib/
     ├── types.ts             # TypeScript types and constants
     ├── colors.ts            # Color utilities and scoring
-    ├── gameStore.ts         # Game state management (KV + memory fallback)
+    ├── gameStore.ts         # Game state management (Redis + memory fallback)
     └── useGame.ts           # React hook for game state
 ```
 
@@ -42,7 +42,7 @@ SVG-based polar grid with 36 hue segments × 8 saturation rings (288 cells). Sup
 - Click/tap interactions
 
 ### Game Store
-Game state management with Vercel KV:
+Game state management with Redis:
 - Automatic fallback to in-memory store for local development
 - Game creation/joining
 - Phase transitions
@@ -74,35 +74,29 @@ npm run build    # Build for production
 npm run lint     # Run ESLint
 ```
 
-## Deployment with Vercel KV
+## Deployment
 
-### 1. Link your project
-```bash
-vercel link
+### 1. Set up Redis
+Use any Redis provider (Redis Cloud, Upstash, etc.) and get your connection URL.
+
+### 2. Add environment variable
+In your Vercel project settings, add:
+```
+REDIS_URL=redis://username:password@host:port
 ```
 
-### 2. Create KV database
-```bash
-vercel kv create spectra-games
-```
-
-### 3. Link KV to your project
-The CLI will automatically add the required environment variables:
-- `KV_REST_API_URL`
-- `KV_REST_API_TOKEN`
-
-### 4. Deploy
+### 3. Deploy
 ```bash
 vercel
 ```
 
-### Local Development with KV (optional)
-To test with KV locally, pull the env vars:
-```bash
-vercel env pull .env.local
+### Local Development with Redis (optional)
+Create a `.env.local` file:
+```
+REDIS_URL=redis://username:password@host:port
 ```
 
-Without KV configured, the game automatically uses an in-memory store which works fine for local development.
+Without `REDIS_URL` configured, the game automatically uses an in-memory store which works fine for local development.
 
 ## Game Rules
 
