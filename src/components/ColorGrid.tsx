@@ -1,9 +1,12 @@
 'use client';
 
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { useMemo } from 'react';
 import { clsx } from 'clsx';
 import { HUE_SEGMENTS, CHROMA_LEVELS, Guess, PLAYER_COLORS } from '@/lib/types';
 import { hslToColor } from '@/lib/colors';
+
+// Cell size in pixels - makes cells easy to tap
+const CELL_SIZE = 32;
 
 interface ColorGridProps {
   targetHue?: number | null;
@@ -32,12 +35,6 @@ export default function ColorGrid({
   disabled = false,
   highlightBestGuess = false,
 }: ColorGridProps) {
-  const [scale, setScale] = useState(2); // Start zoomed in for bigger cells
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const lastTouchRef = useRef<{ x: number; y: number; dist: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
   // Generate all cells
   const cells = useMemo(() => {
     const result: {
@@ -97,106 +94,29 @@ export default function ColorGrid({
     return bestGuessKeys;
   }, [guesses, highlightBestGuess]);
 
-  // Touch handlers for zoom and pan
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      // Pinch start
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      lastTouchRef.current = { x: midX, y: midY, dist };
-      setIsDragging(true);
-    } else if (e.touches.length === 1) {
-      // Pan start
-      lastTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, dist: 0 };
-      setIsDragging(true);
-    }
-  }, [scale]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!lastTouchRef.current) return;
-
-    if (e.touches.length === 2) {
-      // Pinch zoom
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const scaleDelta = dist / lastTouchRef.current.dist;
-
-      setScale(s => Math.min(3, Math.max(1, s * scaleDelta)));
-
-      // Update for next move
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      lastTouchRef.current = { x: midX, y: midY, dist };
-    } else if (e.touches.length === 1) {
-      // Pan
-      const deltaX = e.touches[0].clientX - lastTouchRef.current.x;
-      const deltaY = e.touches[0].clientY - lastTouchRef.current.y;
-
-      // Limit panning based on scale
-      const maxPan = 150 * (scale - 1);
-      setPosition(p => ({
-        x: Math.max(-maxPan, Math.min(maxPan, p.x + deltaX)),
-        y: Math.max(-maxPan, Math.min(maxPan, p.y + deltaY)),
-      }));
-
-      lastTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, dist: 0 };
-    }
-  }, [scale]);
-
-  const handleTouchEnd = useCallback(() => {
-    lastTouchRef.current = null;
-    setIsDragging(false);
-
-    // Reset position when zooming back to 1
-    if (scale <= 1.1) {
-      setScale(1);
-      setPosition({ x: 0, y: 0 });
-    }
-  }, [scale]);
-
-  // Double tap to toggle zoom (between 1x and 2x)
-  const lastTapRef = useRef<number>(0);
-  const handleDoubleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 300) {
-      // Double tap detected - toggle between 1x and 2x
-      if (scale >= 2) {
-        setScale(1);
-        setPosition({ x: 0, y: 0 });
-      } else {
-        setScale(2);
-        setPosition({ x: 0, y: 0 });
-      }
-    }
-    lastTapRef.current = now;
-  }, [scale]);
+  // Grid dimensions
+  const gridWidth = HUE_SEGMENTS * CELL_SIZE;
+  const gridHeight = CHROMA_LEVELS * CELL_SIZE;
 
   return (
-    <div className="w-full max-w-lg mx-auto px-2">
-      {/* Zoom hint */}
+    <div className="w-full">
+      {/* Scroll hint */}
       <p className="text-xs text-center text-foreground/40 mb-2">
-        Drag to pan • Pinch to zoom • Double-tap to zoom out
+        Scroll to explore colors
       </p>
 
+      {/* Scrollable container */}
       <div
-        ref={containerRef}
-        className="overflow-hidden rounded-xl touch-none"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        className="overflow-auto rounded-xl"
+        style={{ height: '55vh', maxHeight: '400px' }}
       >
         <div
-          className="grid gap-px transition-transform duration-100"
+          className="grid"
           style={{
-            gridTemplateColumns: `repeat(${HUE_SEGMENTS}, 1fr)`,
-            transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-            transformOrigin: 'center center',
+            gridTemplateColumns: `repeat(${HUE_SEGMENTS}, ${CELL_SIZE}px)`,
+            width: gridWidth,
+            height: gridHeight,
           }}
-          onClick={handleDoubleTap}
         >
           {cells.map((cell) => {
             const isTarget =
@@ -209,15 +129,18 @@ export default function ColorGrid({
               <div
                 key={`${cell.hue}-${cell.chroma}`}
                 className={clsx(
-                  'aspect-square relative transition-all duration-100',
-                  !disabled && onCellClick && !isDragging && 'cursor-pointer active:opacity-80',
+                  'relative transition-all duration-100',
+                  !disabled && onCellClick && 'cursor-pointer active:opacity-80',
                   isTarget && 'ring-2 ring-white ring-inset z-10',
                   isSelected && 'ring-2 ring-white ring-inset z-20'
                 )}
-                style={{ backgroundColor: cell.color }}
-                onClick={(e) => {
-                  if (!disabled && onCellClick && !isDragging) {
-                    e.stopPropagation();
+                style={{
+                  backgroundColor: cell.color,
+                  width: CELL_SIZE,
+                  height: CELL_SIZE,
+                }}
+                onClick={() => {
+                  if (!disabled && onCellClick) {
                     onCellClick(cell.hue, cell.chroma);
                   }
                 }}
@@ -237,7 +160,7 @@ export default function ColorGrid({
                         return (
                           <div
                             className={clsx(
-                              'w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold border',
+                              'w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold border',
                               isBest ? 'border-yellow-400 border-2' : 'border-white',
                               guess.guessNumber === 2 && !isBest && 'border-dashed'
                             )}
@@ -248,7 +171,7 @@ export default function ColorGrid({
                         );
                       })()
                     ) : (
-                      <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold bg-black/70 border border-white">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold bg-black/70 border border-white">
                         {cellGuesses.length}
                       </div>
                     )}
@@ -258,14 +181,14 @@ export default function ColorGrid({
                 {/* Target indicator */}
                 {isTarget && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+                    <div className="w-3 h-3 rounded-full bg-white animate-ping" />
                   </div>
                 )}
 
                 {/* Selection checkmark */}
                 {isSelected && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <svg className="w-4 h-4 text-white drop-shadow-lg" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5 text-white drop-shadow-lg" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </div>
@@ -275,13 +198,6 @@ export default function ColorGrid({
           })}
         </div>
       </div>
-
-      {/* Zoom level indicator */}
-      {scale > 1 && (
-        <p className="text-xs text-center text-foreground/60 mt-2">
-          {Math.round(scale * 100)}% - drag to pan
-        </p>
-      )}
     </div>
   );
 }
