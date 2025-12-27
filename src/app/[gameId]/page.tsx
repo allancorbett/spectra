@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { clsx } from 'clsx';
 import ColorWheel from '@/components/ColorWheel';
+import ColorGrid from '@/components/ColorGrid';
 import { useGame, getPlayerId, setPlayerId } from '@/lib/useGame';
 import { hslToColor } from '@/lib/colors';
 import { PLAYER_COLORS, PHASE_DURATION, MIN_PLAYERS } from '@/lib/types';
@@ -354,14 +355,14 @@ export default function GamePage({ params }: GamePageProps) {
         {game.targetHue !== null && game.targetSaturation !== null && game.state !== 'leaderboard' && (
           <div className="flex justify-center">
             <div
-              className="w-24 h-24 rounded-2xl shadow-lg animate-pulse-glow"
+              className="w-32 h-32 rounded-2xl shadow-lg animate-pulse-glow"
               style={{ backgroundColor: hslToColor(game.targetHue, game.targetSaturation) }}
             />
           </div>
         )}
 
-        {/* Color wheel */}
-        {game.state !== 'leaderboard' && (
+        {/* Color wheel - only show during reveal */}
+        {game.state === 'reveal' && (
           <div className="flex justify-center">
             <ColorWheel
               size={Math.min(320, typeof window !== 'undefined' ? window.innerWidth - 48 : 320)}
@@ -518,18 +519,15 @@ export default function GamePage({ params }: GamePageProps) {
           </div>
         )}
 
-        <div className="flex justify-center">
-          <ColorWheel
-            size={Math.min(320, typeof window !== 'undefined' ? window.innerWidth - 48 : 320)}
-            selectedHue={selectedHue}
-            selectedSaturation={selectedSat}
-            guesses={displayGuesses}
-            playerColorMap={playerColorMap}
-            playerNameMap={playerNameMap}
-            onCellClick={handleCellClick}
-            disabled={hasLockedIn}
-          />
-        </div>
+        <ColorGrid
+          selectedHue={selectedHue}
+          selectedSaturation={selectedSat}
+          guesses={displayGuesses}
+          playerColorMap={playerColorMap}
+          playerNameMap={playerNameMap}
+          onCellClick={handleCellClick}
+          disabled={hasLockedIn}
+        />
 
         {/* Selected color preview */}
         {selectedHue !== null && selectedSat !== null && !hasLockedIn && (
