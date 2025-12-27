@@ -2,10 +2,26 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Spectra - Color Guessing Party Game',
+  title: {
+    default: 'Spectra - Color Guessing Party Game',
+    template: '%s | Spectra',
+  },
   description: 'A fun party game where players guess colors based on creative clues. Play with 2-24 friends!',
-  keywords: ['party game', 'color game', 'multiplayer', 'guessing game'],
+  keywords: ['party game', 'color game', 'multiplayer', 'guessing game', 'browser game', 'mobile game'],
   authors: [{ name: 'Spectra Team' }],
+  openGraph: {
+    title: 'Spectra - Color Guessing Party Game',
+    description: 'A fun party game where players guess colors based on creative clues.',
+    type: 'website',
+    locale: 'en_US',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export const viewport: Viewport = {

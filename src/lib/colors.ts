@@ -8,7 +8,7 @@ import { HUE_SEGMENTS, CHROMA_LEVELS } from './types';
  * Chroma: 0 to CHROMA_LEVELS-1 (mapped to 0.13-0.25 for vivid, saturated colors)
  * Lightness: Fixed at 0.65 for uniform perceived brightness
  */
-export function hslToColor(hueIndex: number, chromaIndex: number): string {
+export function indexToColor(hueIndex: number, chromaIndex: number): string {
   const hue = (hueIndex / HUE_SEGMENTS) * 360;
   // Chroma ranges from 0.13 to 0.25 (all vivid, saturated colors)
   const chroma = 0.13 + (chromaIndex / (CHROMA_LEVELS - 1)) * 0.12;

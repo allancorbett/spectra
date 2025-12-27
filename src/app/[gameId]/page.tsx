@@ -7,7 +7,7 @@ import { clsx } from 'clsx';
 import ColorWheel from '@/components/ColorWheel';
 import ColorGrid from '@/components/ColorGrid';
 import { useGame, getPlayerId, setPlayerId } from '@/lib/useGame';
-import { hslToColor } from '@/lib/colors';
+import { indexToColor } from '@/lib/colors';
 import { PLAYER_COLORS, PHASE_DURATION, MIN_PLAYERS } from '@/lib/types';
 
 interface GamePageProps {
@@ -356,7 +356,7 @@ export default function GamePage({ params }: GamePageProps) {
           <div className="flex justify-center">
             <div
               className="w-32 h-32 rounded-2xl shadow-lg animate-pulse-glow"
-              style={{ backgroundColor: hslToColor(game.targetHue, game.targetSaturation) }}
+              style={{ backgroundColor: indexToColor(game.targetHue, game.targetSaturation) }}
             />
           </div>
         )}
@@ -534,7 +534,7 @@ export default function GamePage({ params }: GamePageProps) {
           <div className="flex justify-center">
             <div
               className="w-16 h-16 rounded-xl shadow-lg"
-              style={{ backgroundColor: hslToColor(selectedHue, selectedSat) }}
+              style={{ backgroundColor: indexToColor(selectedHue, selectedSat) }}
             />
           </div>
         )}
@@ -574,7 +574,7 @@ export default function GamePage({ params }: GamePageProps) {
           <div className="flex justify-center">
             <div
               className="w-20 h-20 rounded-2xl shadow-lg"
-              style={{ backgroundColor: hslToColor(game.targetHue, game.targetSaturation) }}
+              style={{ backgroundColor: indexToColor(game.targetHue, game.targetSaturation) }}
             />
           </div>
         )}
