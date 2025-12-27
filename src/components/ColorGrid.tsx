@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { clsx } from 'clsx';
 import { HUE_SEGMENTS, CHROMA_LEVELS, Guess, PLAYER_COLORS } from '@/lib/types';
-import { hslToColor } from '@/lib/colors';
+import { indexToColor } from '@/lib/colors';
 
 // Cell size in pixels - makes cells easy to tap
 const CELL_SIZE = 32;
@@ -50,7 +50,7 @@ export default function ColorGrid({
         result.push({
           hue: h,
           chroma: c,
-          color: hslToColor(h, c),
+          color: indexToColor(h, c),
         });
       }
     }

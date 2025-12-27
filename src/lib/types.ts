@@ -42,15 +42,25 @@ export interface Game {
   phaseEndTime: number | null; // Timestamp when current phase ends
   players: Player[];
   guesses: Guess[];
-  roundScores: { playerId: string; distance: number; points: number }[];
+  roundScores: RoundScore[];
 }
 
-export interface GameAction {
-  type: string;
-  playerId?: string;
-  gameId?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload?: any;
+export type GameActionType =
+  | 'create'
+  | 'join'
+  | 'leave'
+  | 'start'
+  | 'advance'
+  | 'guess'
+  | 'end'
+  | 'playAgain'
+  | 'poll';
+
+export interface RoundScore {
+  playerId: string;
+  distance: number;
+  points: number;
+  isClueGiver?: boolean;
 }
 
 // Player colors for markers (12 distinct colors)

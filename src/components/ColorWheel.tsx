@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { clsx } from 'clsx';
 import { HUE_SEGMENTS, CHROMA_LEVELS, Guess, PLAYER_COLORS } from '@/lib/types';
-import { hslToColor } from '@/lib/colors';
+import { indexToColor } from '@/lib/colors';
 
 interface ColorWheelProps {
   size?: number;
@@ -81,7 +81,7 @@ export default function ColorWheel({
           hue: h,
           saturation: s,
           path,
-          color: hslToColor(h, s),
+          color: indexToColor(h, s),
         });
       }
     }

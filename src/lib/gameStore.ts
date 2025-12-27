@@ -4,11 +4,14 @@ import {
   Game,
   GameState,
   Player,
+  RoundScore,
   PLAYER_COLORS,
   PHASE_DURATION,
   MIN_PLAYERS,
   MAX_PLAYERS,
   MAX_NAME_LENGTH,
+  HUE_SEGMENTS,
+  CHROMA_LEVELS,
 } from './types';
 import { calculateDistance, generateGameCode, getRandomTarget } from './colors';
 
@@ -17,21 +20,48 @@ const GAME_TTL_SECONDS = 24 * 60 * 60;
 
 // Redis client singleton
 let redis: Redis | null = null;
+let redisConnectionFailed = false;
 
 function getRedis(): Redis | null {
+  // If we've already failed to connect, don't retry
+  if (redisConnectionFailed) return null;
+
   if (redis) return redis;
 
   const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) return null;
+  if (!redisUrl) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('No REDIS_URL configured, using in-memory store');
+    }
+    return null;
+  }
 
   try {
     redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
       lazyConnect: true,
+      retryStrategy: (times) => {
+        if (times > 3) {
+          console.error('Redis connection failed after 3 retries');
+          redisConnectionFailed = true;
+          return null;
+        }
+        return Math.min(times * 100, 3000);
+      },
     });
+
+    redis.on('error', (err) => {
+      console.error('Redis error:', err.message);
+    });
+
+    redis.on('connect', () => {
+      console.log('Connected to Redis');
+    });
+
     return redis;
-  } catch {
-    console.error('Failed to connect to Redis');
+  } catch (err) {
+    console.error('Failed to initialize Redis:', err);
+    redisConnectionFailed = true;
     return null;
   }
 }
@@ -349,6 +379,20 @@ export async function submitGuess(
     return { success: false, error: 'Not in a guess phase' };
   }
 
+  // Validate hue and saturation are within bounds
+  if (
+    typeof hue !== 'number' ||
+    typeof saturation !== 'number' ||
+    hue < 0 ||
+    hue >= HUE_SEGMENTS ||
+    saturation < 0 ||
+    saturation >= CHROMA_LEVELS ||
+    !Number.isInteger(hue) ||
+    !Number.isInteger(saturation)
+  ) {
+    return { success: false, error: 'Invalid color selection' };
+  }
+
   // Find existing guess or create new one
   let guess = game.guesses.find(
     (g) => g.playerId === playerId && g.roundNumber === game.roundNumber && g.guessNumber === guessNumber
@@ -404,7 +448,7 @@ export async function submitGuess(
 function calculateRoundScores(game: Game) {
   if (game.targetHue === null || game.targetSaturation === null) return;
 
-  const scores: { playerId: string; distance: number; points: number; isClueGiver?: boolean }[] = [];
+  const scores: RoundScore[] = [];
   const guessers = game.players.filter((p) => p.id !== game.clueGiverId);
   const clueGiver = game.players.find((p) => p.id === game.clueGiverId);
 

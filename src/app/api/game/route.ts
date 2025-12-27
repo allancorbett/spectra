@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GameActionType } from '@/lib/types';
 import {
   createGame,
   getGame,
@@ -13,20 +14,77 @@ import {
   createPlayerId,
 } from '@/lib/gameStore';
 
+// Valid actions for type checking
+const VALID_ACTIONS: GameActionType[] = [
+  'create',
+  'join',
+  'leave',
+  'start',
+  'advance',
+  'guess',
+  'end',
+  'playAgain',
+  'poll',
+];
+
+function isValidAction(action: unknown): action is GameActionType {
+  return typeof action === 'string' && VALID_ACTIONS.includes(action as GameActionType);
+}
+
+function isValidGameId(gameId: unknown): gameId is string {
+  return typeof gameId === 'string' && gameId.length === 6;
+}
+
+function isValidPlayerId(playerId: unknown): playerId is string {
+  return typeof playerId === 'string' && playerId.length > 0;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action, gameId, playerId, ...payload } = body;
 
+    // Validate action
+    if (!isValidAction(action)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid or missing action' },
+        { status: 400 }
+      );
+    }
+
+    // Actions that require gameId
+    const requiresGameId: GameActionType[] = ['join', 'leave', 'start', 'advance', 'guess', 'end', 'playAgain', 'poll'];
+    if (requiresGameId.includes(action) && !isValidGameId(gameId)) {
+      return NextResponse.json(
+        { success: false, error: 'Valid game ID required' },
+        { status: 400 }
+      );
+    }
+
+    // Actions that require playerId
+    const requiresPlayerId: GameActionType[] = ['join', 'leave', 'start', 'advance', 'guess', 'end', 'playAgain'];
+    if (requiresPlayerId.includes(action) && !isValidPlayerId(playerId)) {
+      return NextResponse.json(
+        { success: false, error: 'Valid player ID required' },
+        { status: 400 }
+      );
+    }
+
     switch (action) {
       case 'create': {
-        const newPlayerId = playerId || createPlayerId();
+        const newPlayerId = isValidPlayerId(playerId) ? playerId : createPlayerId();
         const game = await createGame(newPlayerId);
         return NextResponse.json({ success: true, game, playerId: newPlayerId });
       }
 
       case 'join': {
         const { name } = payload;
+        if (typeof name !== 'string' || !name.trim()) {
+          return NextResponse.json(
+            { success: false, error: 'Name is required' },
+            { status: 400 }
+          );
+        }
         const result = await joinGame(gameId, playerId, name);
         return NextResponse.json(result);
       }
@@ -48,7 +106,13 @@ export async function POST(request: NextRequest) {
 
       case 'guess': {
         const { hue, saturation, lockIn } = payload;
-        const result = await submitGuess(gameId, playerId, hue, saturation, lockIn);
+        if (typeof hue !== 'number' || typeof saturation !== 'number') {
+          return NextResponse.json(
+            { success: false, error: 'Invalid guess data' },
+            { status: 400 }
+          );
+        }
+        const result = await submitGuess(gameId, playerId, hue, saturation, Boolean(lockIn));
         return NextResponse.json(result);
       }
 
@@ -63,7 +127,6 @@ export async function POST(request: NextRequest) {
       }
 
       case 'poll': {
-        // Check for phase auto-advance
         await checkAndAdvancePhase(gameId);
         const game = await getGame(gameId);
         if (!game) {
@@ -72,8 +135,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, game });
       }
 
-      default:
+      default: {
+        // TypeScript exhaustiveness check
+        const _exhaustive: never = action;
         return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
+      }
     }
   } catch (error) {
     console.error('Game API error:', error);
@@ -88,11 +154,13 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const gameId = searchParams.get('gameId');
 
-  if (!gameId) {
-    return NextResponse.json({ success: false, error: 'Game ID required' }, { status: 400 });
+  if (!isValidGameId(gameId)) {
+    return NextResponse.json(
+      { success: false, error: 'Valid 6-character game ID required' },
+      { status: 400 }
+    );
   }
 
-  // Check for phase auto-advance
   await checkAndAdvancePhase(gameId);
   const game = await getGame(gameId);
 
