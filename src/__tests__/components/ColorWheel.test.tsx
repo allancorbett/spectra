@@ -1,8 +1,11 @@
 import { render, fireEvent } from '@testing-library/react';
 import ColorWheel from '@/components/ColorWheel';
-import { HUE_SEGMENTS, CHROMA_LEVELS, Guess } from '@/lib/types';
+import { Guess, getGridDimensions } from '@/lib/types';
 
 describe('ColorWheel', () => {
+  // Default complexity is 'normal' = 24 hue × 20 chroma = 480 cells
+  const defaultDims = getGridDimensions('normal');
+
   it('renders SVG element', () => {
     const { container } = render(<ColorWheel />);
     const svg = container.querySelector('svg');
@@ -23,10 +26,17 @@ describe('ColorWheel', () => {
     expect(svg).toHaveAttribute('height', '400');
   });
 
-  it('renders correct number of cells', () => {
-    const { container } = render(<ColorWheel />);
+  it('renders correct number of cells for normal complexity', () => {
+    const { container } = render(<ColorWheel complexity="normal" />);
     const paths = container.querySelectorAll('path');
-    expect(paths).toHaveLength(HUE_SEGMENTS * CHROMA_LEVELS);
+    expect(paths).toHaveLength(defaultDims.hue * defaultDims.chroma);
+  });
+
+  it('renders correct number of cells for simple complexity', () => {
+    const simpleDims = getGridDimensions('simple');
+    const { container } = render(<ColorWheel complexity="simple" />);
+    const paths = container.querySelectorAll('path');
+    expect(paths).toHaveLength(simpleDims.hue * simpleDims.chroma);
   });
 
   it('calls onCellClick when cell is clicked', () => {
@@ -200,9 +210,9 @@ describe('ColorWheel', () => {
   it('handles empty guesses array', () => {
     const { container } = render(<ColorWheel guesses={[]} />);
 
-    // Should render cells but no guess markers (only cells have paths)
+    // Should render cells but no guess markers
     const paths = container.querySelectorAll('path');
-    expect(paths).toHaveLength(HUE_SEGMENTS * CHROMA_LEVELS);
+    expect(paths).toHaveLength(defaultDims.hue * defaultDims.chroma);
   });
 
   it('handles missing player in maps gracefully', () => {

@@ -1,8 +1,11 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import ColorGrid from '@/components/ColorGrid';
-import { Guess, HUE_SEGMENTS, CHROMA_LEVELS } from '@/lib/types';
+import { Guess, getGridDimensions } from '@/lib/types';
 
 describe('ColorGrid', () => {
+  // Default complexity is 'normal' = 24 hue × 20 chroma = 480 cells
+  const defaultDims = getGridDimensions('normal');
+
   it('renders scroll hint', () => {
     render(<ColorGrid />);
     expect(screen.getByText('Scroll to explore colors')).toBeInTheDocument();
@@ -10,9 +13,16 @@ describe('ColorGrid', () => {
 
   it('renders correct number of cells', () => {
     const { container } = render(<ColorGrid />);
-    // Grid is HUE_SEGMENTS × CHROMA_LEVELS = 48 × 12 = 576 cells
+    // Grid is hue × chroma cells based on complexity
     const cells = container.querySelectorAll('.grid > div');
-    expect(cells).toHaveLength(HUE_SEGMENTS * CHROMA_LEVELS);
+    expect(cells).toHaveLength(defaultDims.hue * defaultDims.chroma);
+  });
+
+  it('renders correct cells for simple complexity', () => {
+    const simpleDims = getGridDimensions('simple');
+    const { container } = render(<ColorGrid complexity="simple" />);
+    const cells = container.querySelectorAll('.grid > div');
+    expect(cells).toHaveLength(simpleDims.hue * simpleDims.chroma);
   });
 
   it('calls onCellClick when cell is clicked', () => {
@@ -24,7 +34,7 @@ describe('ColorGrid', () => {
 
     expect(handleClick).toHaveBeenCalledTimes(1);
     // First cell is hue=0, chroma=CHROMA_LEVELS-1 (starts from top = high chroma)
-    expect(handleClick).toHaveBeenCalledWith(0, CHROMA_LEVELS - 1);
+    expect(handleClick).toHaveBeenCalledWith(0, defaultDims.chroma - 1);
   });
 
   it('does not call onCellClick when disabled', () => {

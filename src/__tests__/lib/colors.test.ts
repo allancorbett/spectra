@@ -1,37 +1,44 @@
-import { hslToColor, calculateDistance, getRandomTarget, generateGameCode } from '@/lib/colors';
+import { indexToColor, calculateDistance, getRandomTarget, generateGameCode } from '@/lib/colors';
 import { HUE_SEGMENTS, CHROMA_LEVELS } from '@/lib/types';
 
 describe('colors.ts', () => {
-  describe('hslToColor', () => {
+  describe('indexToColor', () => {
     it('returns valid OKLCH color string format', () => {
-      const color = hslToColor(0, 0);
+      const color = indexToColor(0, 0);
       expect(color).toMatch(/^oklch\(\d+\.?\d* \d+\.?\d* \d+\.?\d*\)$/);
     });
 
     it('returns correct color for first cell (0, 0)', () => {
-      const color = hslToColor(0, 0);
+      const color = indexToColor(0, 0);
       // Hue = 0, Chroma = 0.13, Lightness = 0.65
       expect(color).toBe('oklch(0.65 0.13 0)');
     });
 
     it('returns correct color for last hue index', () => {
-      const color = hslToColor(HUE_SEGMENTS - 1, 0);
+      const color = indexToColor(HUE_SEGMENTS - 1, 0);
       // Hue = ((HUE_SEGMENTS-1)/HUE_SEGMENTS) * 360
       const expectedHue = ((HUE_SEGMENTS - 1) / HUE_SEGMENTS) * 360;
       expect(color).toBe(`oklch(0.65 0.13 ${expectedHue})`);
     });
 
     it('returns correct color for max chroma index', () => {
-      const color = hslToColor(0, CHROMA_LEVELS - 1);
+      const color = indexToColor(0, CHROMA_LEVELS - 1);
       // Chroma = 0.13 + 1 * 0.12 = 0.25
       expect(color).toBe('oklch(0.65 0.25 0)');
     });
 
     it('returns color in middle of range', () => {
       const midHue = Math.floor(HUE_SEGMENTS / 2);
-      const color = hslToColor(midHue, 0);
+      const color = indexToColor(midHue, 0);
       // Hue = 180 (half of 360)
       expect(color).toBe('oklch(0.65 0.13 180)');
+    });
+
+    it('accepts custom grid dimensions', () => {
+      const color = indexToColor(6, 5, 12, 10);
+      // Hue = (6/12) * 360 = 180
+      // Chroma = 0.13 + (5/9) * 0.12
+      expect(color).toMatch(/^oklch\(0\.65 \d+\.?\d* 180\)$/);
     });
   });
 
@@ -48,13 +55,13 @@ describe('colors.ts', () => {
     });
 
     it('handles hue wrapping correctly (0 to last should be close)', () => {
-      const distance = calculateDistance(0, 6, HUE_SEGMENTS - 1, 6);
+      const distance = calculateDistance(0, 10, HUE_SEGMENTS - 1, 10);
       // Should be 1 step apart, not HUE_SEGMENTS-1
       expect(distance).toBeLessThan(10);
     });
 
     it('handles hue wrapping correctly (last to 0 should be close)', () => {
-      const distance = calculateDistance(HUE_SEGMENTS - 1, 6, 0, 6);
+      const distance = calculateDistance(HUE_SEGMENTS - 1, 10, 0, 10);
       expect(distance).toBeLessThan(10);
     });
 
@@ -66,7 +73,7 @@ describe('colors.ts', () => {
 
     it('returns approximately 50 for half hue distance', () => {
       // Quarter of the circle (HUE_SEGMENTS / 4)
-      const distance = calculateDistance(0, 6, HUE_SEGMENTS / 4, 6);
+      const distance = calculateDistance(0, 10, HUE_SEGMENTS / 4, 10);
       expect(distance).toBeGreaterThan(30);
       expect(distance).toBeLessThan(60);
     });
@@ -98,13 +105,33 @@ describe('colors.ts', () => {
       expect(Number.isInteger(target.saturation)).toBe(true);
     });
 
-    it('returns values in valid range', () => {
+    it('returns values in valid range for normal complexity', () => {
       for (let i = 0; i < 50; i++) {
-        const target = getRandomTarget();
+        const target = getRandomTarget('normal');
         expect(target.hue).toBeGreaterThanOrEqual(0);
-        expect(target.hue).toBeLessThan(HUE_SEGMENTS);
+        expect(target.hue).toBeLessThan(24); // normal = 24 hue segments
         expect(target.saturation).toBeGreaterThanOrEqual(0);
-        expect(target.saturation).toBeLessThan(CHROMA_LEVELS);
+        expect(target.saturation).toBeLessThan(20); // normal = 20 chroma levels
+      }
+    });
+
+    it('returns values in valid range for simple complexity', () => {
+      for (let i = 0; i < 20; i++) {
+        const target = getRandomTarget('simple');
+        expect(target.hue).toBeGreaterThanOrEqual(0);
+        expect(target.hue).toBeLessThan(12); // simple = 12 hue segments
+        expect(target.saturation).toBeGreaterThanOrEqual(0);
+        expect(target.saturation).toBeLessThan(10); // simple = 10 chroma levels
+      }
+    });
+
+    it('returns values in valid range for complex complexity', () => {
+      for (let i = 0; i < 20; i++) {
+        const target = getRandomTarget('complex');
+        expect(target.hue).toBeGreaterThanOrEqual(0);
+        expect(target.hue).toBeLessThan(36); // complex = 36 hue segments
+        expect(target.saturation).toBeGreaterThanOrEqual(0);
+        expect(target.saturation).toBeLessThan(28); // complex = 28 chroma levels
       }
     });
   });

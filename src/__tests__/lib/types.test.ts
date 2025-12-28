@@ -27,16 +27,16 @@ describe('types.ts', () => {
   });
 
   describe('game constants', () => {
-    it('HUE_SEGMENTS is 48', () => {
-      expect(HUE_SEGMENTS).toBe(48);
+    it('HUE_SEGMENTS is 24', () => {
+      expect(HUE_SEGMENTS).toBe(24);
     });
 
-    it('CHROMA_LEVELS is 12', () => {
-      expect(CHROMA_LEVELS).toBe(12);
+    it('CHROMA_LEVELS is 20', () => {
+      expect(CHROMA_LEVELS).toBe(20);
     });
 
-    it('grid has 576 total colors', () => {
-      expect(HUE_SEGMENTS * CHROMA_LEVELS).toBe(576);
+    it('grid has 480 total colors', () => {
+      expect(HUE_SEGMENTS * CHROMA_LEVELS).toBe(480);
     });
 
     it('PHASE_DURATION is 30 seconds', () => {
