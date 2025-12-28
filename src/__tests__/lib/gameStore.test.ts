@@ -161,7 +161,7 @@ describe('gameStore.ts', () => {
 
   describe('leaveGame', () => {
     it('removes player from lobby', async () => {
-      const { game, hostId } = await setupGame(3);
+      const { game } = await setupGame(3);
       const playerId = game.players[1].id;
 
       await leaveGame(game.id, playerId);
@@ -327,15 +327,15 @@ describe('gameStore.ts', () => {
       await advancePhase(game.id, hostId); // -> guess-2
       await submitGuess(game.id, guestId, 6, 6, true); // -> reveal
 
-      let updated = await getGame(game.id);
-      const newClueGiver = updated?.clueGiverId!;
+      const updated = await getGame(game.id);
+      const newClueGiver = updated!.clueGiverId!;
       await advancePhase(game.id, newClueGiver); // -> leaderboard
 
       // Start next round
       await advancePhase(game.id, newClueGiver); // -> clue-1
-      updated = await getGame(game.id);
-      expect(updated?.state).toBe('clue-1');
-      expect(updated?.roundNumber).toBe(2);
+      const updated2 = await getGame(game.id);
+      expect(updated2?.state).toBe('clue-1');
+      expect(updated2?.roundNumber).toBe(2);
     });
   });
 
@@ -404,8 +404,8 @@ describe('gameStore.ts', () => {
       await advancePhase(game.id, hostId);
       await submitGuess(game.id, guestId, 6, 6, true);
 
-      let updated = await getGame(game.id);
-      const clueGiver = updated?.clueGiverId!;
+      const updated = await getGame(game.id);
+      const clueGiver = updated!.clueGiverId!;
       await advancePhase(game.id, clueGiver);
 
       const result = await endGame(game.id, clueGiver);
@@ -437,8 +437,8 @@ describe('gameStore.ts', () => {
       await advancePhase(game.id, hostId);
       await submitGuess(game.id, guestId, 6, 6, true);
 
-      let updated = await getGame(game.id);
-      const clueGiver = updated?.clueGiverId!;
+      const updated = await getGame(game.id);
+      const clueGiver = updated!.clueGiverId!;
       await advancePhase(game.id, clueGiver);
       await endGame(game.id, clueGiver);
 
@@ -470,16 +470,16 @@ describe('gameStore.ts', () => {
       const guestId = game.players[1].id;
 
       // Get target
-      let updated = await getGame(game.id);
-      const targetHue = updated?.targetHue!;
-      const targetSat = updated?.targetSaturation!;
+      const gameState = await getGame(game.id);
+      const targetHue = gameState!.targetHue!;
+      const targetSat = gameState!.targetSaturation!;
 
       await advancePhase(game.id, hostId);
       await submitGuess(game.id, guestId, targetHue, targetSat, true);
       await advancePhase(game.id, hostId);
       await submitGuess(game.id, guestId, targetHue, targetSat, true);
 
-      updated = await getGame(game.id);
+      const updated = await getGame(game.id);
       expect(updated?.roundScores.find(s => s.playerId === guestId)?.points).toBe(0);
     });
 
@@ -491,9 +491,9 @@ describe('gameStore.ts', () => {
       const guestId2 = game.players[2].id;
 
       // Get target
-      let updated = await getGame(game.id);
-      const targetHue = updated?.targetHue!;
-      const targetSat = updated?.targetSaturation!;
+      const gameState = await getGame(game.id);
+      const targetHue = gameState!.targetHue!;
+      const targetSat = gameState!.targetSaturation!;
 
       await advancePhase(game.id, hostId);
       // Guest1 guesses perfectly
@@ -505,7 +505,7 @@ describe('gameStore.ts', () => {
       await submitGuess(game.id, guestId1, targetHue, targetSat, true);
       await submitGuess(game.id, guestId2, (targetHue + HUE_SEGMENTS / 2) % HUE_SEGMENTS, (targetSat + CHROMA_LEVELS / 2) % CHROMA_LEVELS, true);
 
-      updated = await getGame(game.id);
+      const updated = await getGame(game.id);
       const clueGiverScore = updated?.roundScores.find(s => s.isClueGiver);
 
       // Clue-giver should get average of guest scores

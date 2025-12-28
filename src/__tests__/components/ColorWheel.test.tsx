@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import ColorWheel from '@/components/ColorWheel';
 import { HUE_SEGMENTS, CHROMA_LEVELS, Guess } from '@/lib/types';
 

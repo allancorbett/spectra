@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect, useMemo } from 'react';
+import { use, useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { clsx } from 'clsx';
@@ -24,7 +24,6 @@ export default function GamePage({ params }: GamePageProps) {
     error,
     isHost,
     isClueGiver,
-    currentPlayer,
     joinGame,
     leaveGame,
     startGame,
@@ -32,7 +31,6 @@ export default function GamePage({ params }: GamePageProps) {
     submitGuess,
     endGame,
     playAgain,
-    loadGame,
   } = useGame(gameId);
 
   const [name, setName] = useState('');
@@ -50,34 +48,48 @@ export default function GamePage({ params }: GamePageProps) {
     }
   }, []);
 
-  // Reset selection on phase change
-  useEffect(() => {
-    if (game?.state === 'guess-1' || game?.state === 'guess-2') {
-      setSelectedHue(null);
-      setSelectedSat(null);
-      setHasLockedIn(false);
-    }
-  }, [game?.state]);
+  // Track game state for phase changes
+  const prevGameStateRef = useRef<string | null>(null);
 
-  // Check if already locked in this phase
-  useEffect(() => {
-    if (game && playerId) {
-      const guessNumber = game.state === 'guess-1' ? 1 : game.state === 'guess-2' ? 2 : null;
-      if (guessNumber) {
-        const existingGuess = game.guesses.find(
-          (g) => g.playerId === playerId && g.roundNumber === game.roundNumber && g.guessNumber === guessNumber
-        );
-        if (existingGuess?.lockedIn) {
-          setHasLockedIn(true);
-          setSelectedHue(existingGuess.hue);
-          setSelectedSat(existingGuess.saturation);
-        }
-      }
+  // Compute selection state based on game state
+  const computedSelection = useMemo(() => {
+    if (!game || !playerId) return { hue: null, sat: null, locked: false };
+
+    const guessNumber = game.state === 'guess-1' ? 1 : game.state === 'guess-2' ? 2 : null;
+    if (!guessNumber) return { hue: null, sat: null, locked: false };
+
+    const existingGuess = game.guesses.find(
+      (g) => g.playerId === playerId && g.roundNumber === game.roundNumber && g.guessNumber === guessNumber
+    );
+
+    if (existingGuess?.lockedIn) {
+      return { hue: existingGuess.hue, sat: existingGuess.saturation, locked: true };
     }
+
+    return { hue: null, sat: null, locked: false };
   }, [game, playerId]);
 
+  // Sync computed selection to local state when phase changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const currentState = game?.state ?? null;
+    if (prevGameStateRef.current !== currentState) {
+      prevGameStateRef.current = currentState;
+      // Reset on phase change, but restore if already locked
+      if (computedSelection.locked) {
+        setSelectedHue(computedSelection.hue);
+        setSelectedSat(computedSelection.sat);
+        setHasLockedIn(true);
+      } else if (currentState === 'guess-1' || currentState === 'guess-2') {
+        setSelectedHue(null);
+        setSelectedSat(null);
+        setHasLockedIn(false);
+      }
+    }
+  }); // Intentionally no deps - runs on every render to check for changes
+
   // Timer calculation with live updates
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!game?.phaseEndTime) return;
     const interval = setInterval(() => setNow(Date.now()), 100);

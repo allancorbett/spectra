@@ -479,7 +479,8 @@ export async function endGame(gameId: string, playerId: string): Promise<{ succe
   return { success: true, game };
 }
 
-export async function playAgain(gameId: string, playerId: string): Promise<{ success: boolean; error?: string; game?: Game }> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function playAgain(gameId: string, _playerId: string): Promise<{ success: boolean; error?: string; game?: Game }> {
   const game = await getGame(gameId);
   if (!game) {
     return { success: false, error: 'Game not found' };
