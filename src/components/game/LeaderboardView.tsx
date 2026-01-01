@@ -17,7 +17,7 @@ export default function LeaderboardView({
   currentPlayerId,
   nextClueGiverName,
 }: LeaderboardViewProps) {
-  const sortedPlayers = [...players].sort((a, b) => a.totalScore - b.totalScore);
+  const sortedPlayers = [...players].sort((a, b) => b.totalScore - a.totalScore);
 
   return (
     <div className="flex-1 flex flex-col p-4 gap-4">

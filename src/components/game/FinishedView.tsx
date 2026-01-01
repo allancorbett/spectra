@@ -17,7 +17,7 @@ export default function FinishedView({
   onPlayAgain,
   onNewGame,
 }: FinishedViewProps) {
-  const sortedPlayers = [...players].sort((a, b) => a.totalScore - b.totalScore);
+  const sortedPlayers = [...players].sort((a, b) => b.totalScore - a.totalScore);
   const winner = sortedPlayers[0];
 
   return (
