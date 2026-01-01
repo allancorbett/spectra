@@ -133,19 +133,19 @@ export default function Home() {
                 <li>Everyone places their first guess on the wheel</li>
                 <li>The clue-giver gives a second clue (TWO words this time)</li>
                 <li>Everyone places their second guess</li>
-                <li>Scores are revealed - lower is better!</li>
+                <li>Scores are revealed - higher is better!</li>
               </ol>
             </div>
 
             <div>
               <h3 className="font-semibold text-foreground mb-1">Scoring</h3>
               <p className="text-sm mb-2">
-                <strong>Guessers:</strong> Points are based on distance from the target (0-100).
-                Your better guess of the two counts. Lower is better!
+                <strong>Guessers:</strong> 0-100 points based on how close you are to the target.
+                Your better guess of the two counts. 100 = perfect!
               </p>
               <p className="text-sm">
                 <strong>Clue-giver:</strong> Gets the average score of all guessers. Give good clues
-                to help everyone score low!
+                to help everyone score high!
               </p>
             </div>
 
@@ -153,7 +153,7 @@ export default function Home() {
               <h3 className="font-semibold text-foreground mb-1">Taking Turns</h3>
               <p className="text-sm">
                 Everyone takes a turn as clue-giver! The role rotates through all players in the
-                order they joined. After all rounds, the player with the lowest total score wins!
+                order they joined. After all rounds, the player with the highest total score wins!
               </p>
             </div>
 
