@@ -14,7 +14,7 @@ import {
   DEFAULT_SETTINGS,
   getGridDimensions,
 } from './types';
-import { calculateDistance, generateGameCode, getRandomTarget } from './colors';
+import { calculateScore, generateGameCode, getRandomTarget } from './colors';
 
 // Game TTL: 24 hours in seconds
 const GAME_TTL_SECONDS = 24 * 60 * 60;
@@ -469,16 +469,16 @@ function calculateRoundScores(game: Game) {
     );
 
     if (playerGuesses.length === 0) {
-      // No guesses = max points (100)
-      scores.push({ playerId: player.id, distance: 100, points: 100 });
-      player.totalScore += 100;
+      // No guesses = 0 points (worst score)
+      scores.push({ playerId: player.id, distance: 0, points: 0 });
       continue;
     }
 
-    // Calculate distance for each guess using complexity-based dimensions
-    let bestDistance = 100;
+    // Calculate score for each guess using complexity-based dimensions
+    // Higher score = better (100 = exact match, 0 = furthest away)
+    let bestScore = 0;
     for (const guess of playerGuesses) {
-      const distance = calculateDistance(
+      const score = calculateScore(
         game.targetHue,
         game.targetSaturation,
         guess.hue,
@@ -486,14 +486,14 @@ function calculateRoundScores(game: Game) {
         dims.hue,
         dims.chroma
       );
-      guess.distance = distance;
-      if (distance < bestDistance) {
-        bestDistance = distance;
+      guess.distance = score; // Note: 'distance' field now stores the score (higher = better)
+      if (score > bestScore) {
+        bestScore = score;
       }
     }
 
-    scores.push({ playerId: player.id, distance: bestDistance, points: bestDistance });
-    player.totalScore += bestDistance;
+    scores.push({ playerId: player.id, distance: bestScore, points: bestScore });
+    player.totalScore += bestScore;
   }
 
   // Calculate clue-giver's score as the average of all guesser scores
@@ -510,8 +510,8 @@ function calculateRoundScores(game: Game) {
     clueGiver.totalScore += averagePoints;
   }
 
-  // Sort by distance (lowest first)
-  scores.sort((a, b) => a.distance - b.distance);
+  // Sort by score (highest first)
+  scores.sort((a, b) => b.points - a.points);
   game.roundScores = scores;
 }
 

@@ -75,7 +75,7 @@ Game state management with Redis:
 - Game creation/joining with settings
 - Phase transitions with optional timer
 - Guess submission and clue submission (remote mode)
-- Score calculation (Euclidean distance in OKLCH space)
+- Score calculation (0-100 points based on Euclidean distance in OKLCH space, higher is better)
 - Auto-expiry of games (24 hours TTL)
 
 ### useGame Hook
@@ -146,12 +146,12 @@ Without `REDIS_URL` configured, the game automatically uses an in-memory store w
 ## Game Rules
 
 - 2-24 players
-- **Guesser scoring**: 0-100 points per round based on Euclidean distance in OKLCH color space (lower is better)
+- **Guesser scoring**: 0-100 points per round based on Euclidean distance in OKLCH color space (100 = exact match, 0 = furthest away)
 - Best of two guesses counts for guessers
 - **Clue-giver scoring**: Gets the average score of all guessers (skipped with only 2 players)
 - Clue-giver rotates sequentially through all players (by join order)
 - No color names allowed in clues (honor system)
-- Lowest total score after all rounds wins
+- Highest total score after all rounds wins
 
 ## API Endpoints
 

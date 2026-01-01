@@ -22,10 +22,10 @@ export function indexToColor(
 }
 
 /**
- * Calculate Euclidean distance between two cells on the color grid
- * Returns a score from 0-100 (lower is better)
+ * Calculate score based on Euclidean distance between two cells on the color grid
+ * Returns a score from 0-100 (higher is better: 100 = exact match, 0 = furthest away)
  */
-export function calculateDistance(
+export function calculateScore(
   targetHue: number,
   targetSat: number,
   guessHue: number,
@@ -51,10 +51,11 @@ export function calculateDistance(
   );
 
   // Scale to 0-100 (max euclidean in this space is sqrt(2) ≈ 1.414)
+  // Invert so 100 = exact match, 0 = furthest away
   const maxDistance = Math.sqrt(2);
-  const score = Math.round((euclidean / maxDistance) * 100);
+  const score = Math.round((1 - euclidean / maxDistance) * 100);
 
-  return Math.min(100, score);
+  return Math.max(0, score);
 }
 
 /**
